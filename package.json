@@ -1,0 +1,34 @@
+{
+  "name": "@kaizen/sdk",
+  "version": "1.0.0",
+  "description": "Official TypeScript SDK for Kaizen AI Systems - Akuma, Enzan, Sōzō",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["kaizen", "akuma", "enzan", "sozo", "nl-to-sql", "gpu-cost", "synthetic-data", "ai"],
+  "author": "Kaizen AI Systems",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/kaizen-ai/sdk-typescript.git" },
+  "homepage": "https://kaizen.run",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": { "node": ">=18.0.0" }
+}
