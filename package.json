@@ -22,8 +22,8 @@
   "keywords": ["kaizen", "akuma", "enzan", "sozo", "nl-to-sql", "gpu-cost", "synthetic-data", "ai"],
   "author": "Kaizen AI Systems",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/kaizen-ai/sdk-typescript.git" },
-  "homepage": "https://kaizen.run",
+  "repository": { "type": "git", "url": "https://github.com/kaizen-ai-systems/sdk-typescript.git" },
+  "homepage": "https://www.kaizenaisystems.com",
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsup": "^8.0.0",

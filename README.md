@@ -1,6 +1,6 @@
 # @kaizen/sdk
 
-Official TypeScript/JavaScript SDK for [Kaizen AI Systems](https://kaizen.run).
+Official TypeScript/JavaScript SDK for [Kaizen AI Systems](https://www.kaizenaisystems.com).
 
 ## Installation
 
@@ -152,7 +152,7 @@ import { createClient } from "@kaizen/sdk";
 
 const client = createClient({
   apiKey: "your-api-key",
-  baseUrl: "https://api.kaizen.run",
+  baseUrl: "https://api.kaizenaisystems.com",
   timeout: 30000
 });
 ```

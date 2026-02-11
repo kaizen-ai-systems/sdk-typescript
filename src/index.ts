@@ -166,7 +166,7 @@ class HttpClient {
   private timeout: number;
 
   constructor(config: KaizenConfig = {}) {
-    this.baseUrl = config.baseUrl || "https://api.kaizen.run";
+    this.baseUrl = config.baseUrl || "https://api.kaizenaisystems.com";
     this.apiKey = config.apiKey || "";
     this.timeout = config.timeout || 30000;
   }
