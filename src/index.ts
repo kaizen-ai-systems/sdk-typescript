@@ -231,7 +231,31 @@ export class EnzanClient {
 
   /** Get GPU cost summary */
   async summary(req: EnzanSummaryRequest): Promise<EnzanSummaryResponse> {
-    return this.http.post("/v1/enzan/summary", req);
+    const raw = await this.http.post<Record<string, unknown>>("/v1/enzan/summary", req);
+    const mapRow = (r: Record<string, unknown>): EnzanSummaryRow => ({
+      project: r.project as string | undefined,
+      model: r.model as string | undefined,
+      team: r.team as string | undefined,
+      provider: r.provider as string | undefined,
+      costUsd: (r.costUsd ?? r.cost_usd ?? 0) as number,
+      gpuHours: (r.gpuHours ?? r.gpu_hours ?? 0) as number,
+      requests: (r.requests ?? 0) as number,
+      tokensIn: (r.tokensIn ?? r.tokens_in ?? 0) as number,
+      tokensOut: (r.tokensOut ?? r.tokens_out ?? 0) as number,
+    });
+    const rawTotal = (raw.total ?? {}) as Record<string, unknown>;
+    const rawRows = (raw.rows ?? []) as Record<string, unknown>[];
+    return {
+      window: raw.window as string,
+      startTime: raw.startTime as string,
+      endTime: raw.endTime as string,
+      rows: rawRows.map(mapRow),
+      total: {
+        costUsd: (rawTotal.costUsd ?? rawTotal.cost_usd ?? 0) as number,
+        gpuHours: (rawTotal.gpuHours ?? rawTotal.gpu_hours ?? 0) as number,
+        requests: (rawTotal.requests ?? 0) as number,
+      },
+    };
   }
 
   /** Get current burn rate */
