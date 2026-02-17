@@ -41,7 +41,7 @@ const data = await sozo.generate({
 ```typescript
 // Generate SQL from natural language
 const { sql, rows, explanation } = await akuma.query({
-  dialect: "postgres",  // postgres, mysql, snowflake, bigquery, sqlite
+  dialect: "postgres",  // postgres, mysql, snowflake, bigquery
   prompt: "Show revenue by month for 2024",
   mode: "sql-and-results",  // sql-only, sql-and-results, explain
   guardrails: {
@@ -54,6 +54,23 @@ const { sql, rows, explanation } = await akuma.query({
 
 // Explain a SQL query
 const { explanation } = await akuma.explain("SELECT * FROM users WHERE active = true");
+
+// Set schema context (optional but recommended for accuracy)
+await akuma.setSchema({
+  version: "2026-02-17",
+  tables: [
+    {
+      name: "orders",
+      description: "Customer orders",
+      columns: [
+        { name: "id", type: "uuid" },
+        { name: "customer_id", type: "uuid" },
+        { name: "total_amount", type: "numeric" }
+      ],
+      primaryKey: ["id"]
+    }
+  ]
+});
 ```
 
 ## Enzan (GPU Cost)
