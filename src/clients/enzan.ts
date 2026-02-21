@@ -18,6 +18,7 @@ function mapSummaryRow(row: Record<string, unknown>): EnzanSummaryRow {
     model: typeof row.model === "string" ? row.model : undefined,
     team: typeof row.team === "string" ? row.team : undefined,
     provider: typeof row.provider === "string" ? row.provider : undefined,
+    endpoint: typeof row.endpoint === "string" ? row.endpoint : undefined,
     costUsd: asNumber(row.costUsd ?? row.cost_usd),
     gpuHours: asNumber(row.gpuHours ?? row.gpu_hours),
     requests: asNumber(row.requests),
@@ -34,6 +35,7 @@ export class EnzanClient {
     const raw = await this.http.post<Record<string, unknown>>("/v1/enzan/summary", req);
     const rawTotal = (raw.total ?? {}) as Record<string, unknown>;
     const rawRows = Array.isArray(raw.rows) ? (raw.rows as Record<string, unknown>[]) : [];
+    const rawAPICosts = raw.apiCosts as Record<string, unknown> | undefined;
 
     return {
       window: typeof raw.window === "string" ? raw.window : req.window,
@@ -45,6 +47,14 @@ export class EnzanClient {
         gpuHours: asNumber(rawTotal.gpuHours ?? rawTotal.gpu_hours),
         requests: asNumber(rawTotal.requests),
       },
+      apiCosts: rawAPICosts
+        ? {
+            totalCostUsd: asNumber(rawAPICosts.totalCostUsd),
+            promptTokens: asNumber(rawAPICosts.promptTokens),
+            outputTokens: asNumber(rawAPICosts.outputTokens),
+            queries: asNumber(rawAPICosts.queries),
+          }
+        : undefined,
     };
   }
 
