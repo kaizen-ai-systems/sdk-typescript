@@ -38,6 +38,8 @@ const data = await sozo.generate({
 
 ## Akuma (NL→SQL)
 
+Persisted source APIs (`setSchema`, `listSources`, `createSource`, `syncSource`, `deleteSource`) require a dashboard-created DB-backed API key. Demo keys remain schema-less.
+
 ```typescript
 // Generate SQL from natural language
 const { sql, rows, explanation } = await akuma.query({
@@ -57,6 +59,8 @@ const { explanation } = await akuma.explain("SELECT * FROM users WHERE active = 
 
 // Set schema context (optional but recommended for accuracy)
 await akuma.setSchema({
+  name: "Warehouse Manual Schema",
+  dialect: "postgres",
   version: "2026-02-17",
   tables: [
     {
@@ -71,6 +75,25 @@ await akuma.setSchema({
     }
   ]
 });
+
+// Route a query through a persisted source
+await akuma.query({
+  dialect: "postgres",
+  prompt: "Show revenue by month for 2024",
+  sourceId: "src_123",
+});
+
+// Manage persisted sources (Postgres/MySQL live sync)
+await akuma.createSource({
+  name: "Warehouse",
+  dialect: "postgres",
+  targetSchemas: ["public"],
+  connectionString: process.env.WAREHOUSE_URL!,
+});
+
+const { sources } = await akuma.listSources();
+await akuma.syncSource(sources[0].id);
+await akuma.deleteSource(sources[0].id);
 ```
 
 ## Enzan (GPU Cost)

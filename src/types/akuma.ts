@@ -1,6 +1,10 @@
 export type SQLDialect = "postgres" | "mysql" | "snowflake" | "bigquery";
 
+export type LiveAkumaDialect = "postgres" | "mysql";
+
 export type QueryMode = "sql-only" | "sql-and-results" | "explain";
+
+export type AkumaSourceStatus = "syncing" | "active" | "error" | "schema_too_large";
 
 export interface Guardrails {
   readOnly?: boolean;
@@ -16,6 +20,7 @@ export interface AkumaQueryRequest {
   prompt: string;
   mode?: QueryMode;
   maxRows?: number;
+  sourceId?: string;
   guardrails?: Guardrails;
 }
 
@@ -56,11 +61,42 @@ export interface AkumaTable {
 }
 
 export interface AkumaSchemaRequest {
+  sourceId?: string;
+  name?: string;
+  dialect: SQLDialect;
   version?: string;
   tables: AkumaTable[];
 }
 
-export interface AkumaSchemaResponse {
-  status: string;
-  tables: number;
+export interface AkumaSource {
+  id: string;
+  name: string;
+  dialect: SQLDialect;
+  isManual: boolean;
+  targetSchemas: string[];
+  status: AkumaSourceStatus;
+  lastError?: string;
+  lastSyncedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export interface AkumaCreateSourceRequest {
+  name: string;
+  dialect: LiveAkumaDialect;
+  targetSchemas?: string[];
+  connectionString: string;
+}
+
+export interface AkumaSourcesResponse {
+  sources: AkumaSource[];
+}
+
+export interface AkumaSourceMutationResponse {
+  status: string;
+  sourceId?: string;
+  source?: AkumaSource;
+  tables?: number;
+}
+
+export type AkumaSchemaResponse = AkumaSourceMutationResponse;
