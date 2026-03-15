@@ -18,21 +18,24 @@ describe("EnzanClient.summary", () => {
             requests: 42,
             tokens_in: 100,
             tokens_out: 200,
+            avg_util_pct: 74.5,
           },
         ],
-      total: {
-        cost_usd: 12.5,
-        gpu_hours: 3,
-        requests: 42,
-      },
-      apiCosts: {
-        totalCostUsd: 0.42,
-        promptTokens: 1000,
-        outputTokens: 200,
-        queries: 5,
-      },
-    }),
-  } as unknown as HttpClient;
+        total: {
+          cost_usd: 12.5,
+          gpu_hours: 3,
+          requests: 42,
+          tokens_in: 100,
+          tokens_out: 200,
+        },
+        apiCosts: {
+          totalCostUsd: 0.42,
+          promptTokens: 1000,
+          outputTokens: 200,
+          queries: 5,
+        },
+      }),
+    } as unknown as HttpClient;
 
     const client = new EnzanClient(http);
     const response = await client.summary({ window: "24h" });
@@ -42,6 +45,9 @@ describe("EnzanClient.summary", () => {
     expect(response.rows[0].tokensIn).toBe(100);
     expect(response.rows[0].tokensOut).toBe(200);
     expect(response.rows[0].endpoint).toBe("/v1/akuma/query");
+    expect(response.rows[0].avgUtilPct).toBe(74.5);
+    expect(response.total.tokensIn).toBe(100);
+    expect(response.total.tokensOut).toBe(200);
     expect(response.apiCosts?.totalCostUsd).toBe(0.42);
     expect(response.apiCosts?.promptTokens).toBe(1000);
     expect(http.post).toHaveBeenCalledWith("/v1/enzan/summary", { window: "24h" });

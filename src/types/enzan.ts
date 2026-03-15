@@ -5,7 +5,7 @@ export type AlertType = "cost_threshold" | "cost_anomaly" | "usage_spike" | "idl
 export interface EnzanSummaryRequest {
   window: TimeWindow;
   groupBy?: GroupByDimension[];
-  filters?: { projects?: string[]; models?: string[]; teams?: string[]; providers?: string[] };
+  filters?: { projects?: string[]; models?: string[]; teams?: string[]; providers?: string[]; endpoints?: string[] };
 }
 
 export interface EnzanSummaryRow {
@@ -19,6 +19,7 @@ export interface EnzanSummaryRow {
   requests: number;
   tokensIn: number;
   tokensOut: number;
+  avgUtilPct?: number;
 }
 
 export interface EnzanSummaryResponse {
@@ -26,7 +27,7 @@ export interface EnzanSummaryResponse {
   startTime: string;
   endTime: string;
   rows: EnzanSummaryRow[];
-  total: { costUsd: number; gpuHours: number; requests: number };
+  total: { costUsd: number; gpuHours: number; requests: number; tokensIn: number; tokensOut: number };
   apiCosts?: APICostSummary;
 }
 
@@ -43,8 +44,11 @@ export interface EnzanResource {
   gpuType: string;
   gpuCount: number;
   region?: string;
+  endpoint?: string;
   labels?: Record<string, string>;
   hourlyRate: number;
+  createdAt?: string;
+  lastSeenAt?: string;
 }
 
 export interface EnzanAlert {
@@ -53,6 +57,7 @@ export interface EnzanAlert {
   type: AlertType;
   threshold: number;
   window: string;
+  labels?: Record<string, string>;
   enabled: boolean;
 }
 

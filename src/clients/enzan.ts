@@ -24,6 +24,10 @@ function mapSummaryRow(row: Record<string, unknown>): EnzanSummaryRow {
     requests: asNumber(row.requests),
     tokensIn: asNumber(row.tokensIn ?? row.tokens_in),
     tokensOut: asNumber(row.tokensOut ?? row.tokens_out),
+    avgUtilPct:
+      typeof (row.avgUtilPct ?? row.avg_util_pct) === "number"
+        ? asNumber(row.avgUtilPct ?? row.avg_util_pct)
+        : undefined,
   };
 }
 
@@ -46,6 +50,8 @@ export class EnzanClient {
         costUsd: asNumber(rawTotal.costUsd ?? rawTotal.cost_usd),
         gpuHours: asNumber(rawTotal.gpuHours ?? rawTotal.gpu_hours),
         requests: asNumber(rawTotal.requests),
+        tokensIn: asNumber(rawTotal.tokensIn ?? rawTotal.tokens_in),
+        tokensOut: asNumber(rawTotal.tokensOut ?? rawTotal.tokens_out),
       },
       apiCosts: rawAPICosts
         ? {

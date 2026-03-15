@@ -11,11 +11,11 @@ export interface SozoGenerateRequest {
 
 export interface SozoColumnStats {
   type: string;
+  nullCount: number;
   min?: number;
   max?: number;
   mean?: number;
-  uniqueCount?: number;
-  values?: Record<string, number>;
+  stdDev?: number;
 }
 
 export interface SozoGenerateResponse {
@@ -26,5 +26,6 @@ export interface SozoGenerateResponse {
 
 export interface SozoSchemaInfo {
   name: string;
+  description?: string;
   columns: SozoSchema;
 }
