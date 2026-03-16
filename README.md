@@ -107,6 +107,11 @@ const summary = await enzan.summary({
 });
 console.log(summary.total.costUsd);
 
+const byModel = await enzan.costsByModel({ window: "30d" });
+for (const row of byModel.rows) {
+  console.log(row.model, row.costUsd, row.categories?.map((c) => c.category));
+}
+
 // Get burn rate
 const { burnRateUsdPerHour } = await enzan.burn();
 

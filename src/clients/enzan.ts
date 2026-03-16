@@ -2,6 +2,9 @@ import { HttpClient } from "../core/http";
 import {
   EnzanAlert,
   EnzanBurnResponse,
+  EnzanModelCategoryBreakdown,
+  EnzanModelCostRequest,
+  EnzanModelCostResponse,
   EnzanResource,
   EnzanSummaryRequest,
   EnzanSummaryResponse,
@@ -28,6 +31,22 @@ function mapSummaryRow(row: Record<string, unknown>): EnzanSummaryRow {
       typeof (row.avgUtilPct ?? row.avg_util_pct) === "number"
         ? asNumber(row.avgUtilPct ?? row.avg_util_pct)
         : undefined,
+  };
+}
+
+function mapModelCostCategory(row: Record<string, unknown>): EnzanModelCategoryBreakdown {
+  const category =
+    row.category === "simple" || row.category === "moderate" || row.category === "complex"
+      ? row.category
+      : "moderate";
+  return {
+    category,
+    queries: asNumber(row.queries),
+    promptTokens: asNumber(row.promptTokens ?? row.prompt_tokens),
+    outputTokens: asNumber(row.outputTokens ?? row.output_tokens),
+    costUsd: asNumber(row.costUsd ?? row.cost_usd),
+    percentage: asNumber(row.percentage),
+    avgCostPerQuery: asNumber(row.avgCostPerQuery ?? row.avg_cost_per_query),
   };
 }
 
@@ -61,6 +80,37 @@ export class EnzanClient {
             queries: asNumber(rawAPICosts.queries),
           }
         : undefined,
+    };
+  }
+
+  /** Get model-level API cost analytics */
+  async costsByModel(req: EnzanModelCostRequest): Promise<EnzanModelCostResponse> {
+    const raw = await this.http.post<Record<string, unknown>>("/v1/enzan/costs/by-model", req);
+    const rawRows = Array.isArray(raw.rows) ? (raw.rows as Record<string, unknown>[]) : [];
+    const rawTotal = (raw.total ?? {}) as Record<string, unknown>;
+
+    return {
+      window: typeof raw.window === "string" ? raw.window : req.window,
+      startTime: typeof raw.startTime === "string" ? raw.startTime : "",
+      endTime: typeof raw.endTime === "string" ? raw.endTime : "",
+      rows: rawRows.map((row) => ({
+        model: typeof row.model === "string" ? row.model : "unknown",
+        queries: asNumber(row.queries),
+        promptTokens: asNumber(row.promptTokens ?? row.prompt_tokens),
+        outputTokens: asNumber(row.outputTokens ?? row.output_tokens),
+        costUsd: asNumber(row.costUsd ?? row.cost_usd),
+        percentage: asNumber(row.percentage),
+        avgCostPerQuery: asNumber(row.avgCostPerQuery ?? row.avg_cost_per_query),
+        categories: Array.isArray(row.categories)
+          ? (row.categories as Record<string, unknown>[]).map(mapModelCostCategory)
+          : undefined,
+      })),
+      total: {
+        queries: asNumber(rawTotal.queries),
+        promptTokens: asNumber(rawTotal.promptTokens ?? rawTotal.prompt_tokens),
+        outputTokens: asNumber(rawTotal.outputTokens ?? rawTotal.output_tokens),
+        costUsd: asNumber(rawTotal.costUsd ?? rawTotal.cost_usd),
+      },
     };
   }
 

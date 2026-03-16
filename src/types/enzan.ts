@@ -8,6 +8,10 @@ export interface EnzanSummaryRequest {
   filters?: { projects?: string[]; models?: string[]; teams?: string[]; providers?: string[]; endpoints?: string[] };
 }
 
+export interface EnzanModelCostRequest {
+  window: TimeWindow;
+}
+
 export interface EnzanSummaryRow {
   project?: string;
   model?: string;
@@ -29,6 +33,35 @@ export interface EnzanSummaryResponse {
   rows: EnzanSummaryRow[];
   total: { costUsd: number; gpuHours: number; requests: number; tokensIn: number; tokensOut: number };
   apiCosts?: APICostSummary;
+}
+
+export interface EnzanModelCategoryBreakdown {
+  category: "simple" | "moderate" | "complex";
+  queries: number;
+  promptTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  percentage: number;
+  avgCostPerQuery: number;
+}
+
+export interface EnzanModelCostRow {
+  model: string;
+  queries: number;
+  promptTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  percentage: number;
+  avgCostPerQuery: number;
+  categories?: EnzanModelCategoryBreakdown[];
+}
+
+export interface EnzanModelCostResponse {
+  window: string;
+  startTime: string;
+  endTime: string;
+  rows: EnzanModelCostRow[];
+  total: { queries: number; promptTokens: number; outputTokens: number; costUsd: number };
 }
 
 export interface APICostSummary {
