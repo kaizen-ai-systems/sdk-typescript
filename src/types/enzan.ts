@@ -12,6 +12,25 @@ export interface EnzanModelCostRequest {
   window: TimeWindow;
 }
 
+export interface EnzanLLMPricingUpsertRequest {
+  provider: string;
+  model: string;
+  displayName?: string;
+  inputCostPer1KTokensUsd: number;
+  outputCostPer1KTokensUsd: number;
+  currency?: string;
+  active?: boolean;
+}
+
+export interface EnzanGPUPricingUpsertRequest {
+  provider: string;
+  gpuType: string;
+  displayName?: string;
+  hourlyRateUsd: number;
+  currency?: string;
+  active?: boolean;
+}
+
 export interface EnzanSummaryRow {
   project?: string;
   model?: string;
@@ -62,6 +81,35 @@ export interface EnzanModelCostResponse {
   endTime: string;
   rows: EnzanModelCostRow[];
   total: { queries: number; promptTokens: number; outputTokens: number; costUsd: number };
+}
+
+export interface EnzanLLMPricing {
+  provider: string;
+  model: string;
+  displayName: string;
+  inputCostPer1KTokensUsd: number;
+  outputCostPer1KTokensUsd: number;
+  currency: string;
+  active: boolean;
+}
+
+export interface EnzanGPUPricing {
+  provider: string;
+  gpuType: string;
+  displayName: string;
+  hourlyRateUsd: number;
+  currency: string;
+  active: boolean;
+}
+
+export interface EnzanLLMPricingMutationResponse {
+  status: string;
+  pricing: EnzanLLMPricing;
+}
+
+export interface EnzanGPUPricingMutationResponse {
+  status: string;
+  pricing: EnzanGPUPricing;
 }
 
 export interface APICostSummary {

@@ -122,3 +122,55 @@ describe("EnzanClient.costsByModel", () => {
     expect(http.post).toHaveBeenCalledWith("/v1/enzan/costs/by-model", { window: "30d" });
   });
 });
+
+describe("EnzanClient pricing catalog", () => {
+  it("maps LLM pricing catalog rows and GPU pricing mutation responses", async () => {
+    const http = {
+      get: vi.fn().mockResolvedValue({
+        models: [
+          {
+            provider: "openai",
+            model: "gpt-4o-mini",
+            display_name: "GPT-4o mini",
+            input_cost_per_1k_tokens_usd: 0.00015,
+            output_cost_per_1k_tokens_usd: 0.0006,
+            currency: "USD",
+            active: true,
+          },
+        ],
+      }),
+      post: vi.fn().mockResolvedValue({
+        status: "upserted",
+        pricing: {
+          provider: "runpod",
+          gpu_type: "h100",
+          display_name: "H100",
+          hourly_rate_usd: 1.99,
+          currency: "USD",
+          active: true,
+        },
+      }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const models = await client.listModelPricing();
+    const gpu = await client.upsertGPUPricing({
+      provider: "runpod",
+      gpuType: "h100",
+      hourlyRateUsd: 1.99,
+    });
+
+    expect(models[0].displayName).toBe("GPT-4o mini");
+    expect(models[0].inputCostPer1KTokensUsd).toBe(0.00015);
+    expect(gpu.pricing.gpuType).toBe("h100");
+    expect(http.get).toHaveBeenCalledWith("/v1/enzan/pricing/models");
+    expect(http.post).toHaveBeenCalledWith("/v1/enzan/pricing/gpus", {
+      provider: "runpod",
+      gpu_type: "h100",
+      display_name: undefined,
+      hourly_rate_usd: 1.99,
+      currency: undefined,
+      active: undefined,
+    });
+  });
+});

@@ -112,6 +112,11 @@ for (const row of byModel.rows) {
   console.log(row.model, row.costUsd, row.categories?.map((c) => c.category));
 }
 
+const modelPricing = await enzan.listModelPricing();
+for (const row of modelPricing) {
+  console.log(row.provider, row.model, row.inputCostPer1KTokensUsd, row.outputCostPer1KTokensUsd);
+}
+
 // Get burn rate
 const { burnRateUsdPerHour } = await enzan.burn();
 

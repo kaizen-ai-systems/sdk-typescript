@@ -2,6 +2,12 @@ import { HttpClient } from "../core/http";
 import {
   EnzanAlert,
   EnzanBurnResponse,
+  EnzanGPUPricing,
+  EnzanGPUPricingMutationResponse,
+  EnzanGPUPricingUpsertRequest,
+  EnzanLLMPricing,
+  EnzanLLMPricingMutationResponse,
+  EnzanLLMPricingUpsertRequest,
   EnzanModelCategoryBreakdown,
   EnzanModelCostRequest,
   EnzanModelCostResponse,
@@ -47,6 +53,29 @@ function mapModelCostCategory(row: Record<string, unknown>): EnzanModelCategoryB
     costUsd: asNumber(row.costUsd ?? row.cost_usd),
     percentage: asNumber(row.percentage),
     avgCostPerQuery: asNumber(row.avgCostPerQuery ?? row.avg_cost_per_query),
+  };
+}
+
+function mapLLMPricing(row: Record<string, unknown>): EnzanLLMPricing {
+  return {
+    provider: typeof row.provider === "string" ? row.provider : "",
+    model: typeof row.model === "string" ? row.model : "",
+    displayName: typeof (row.displayName ?? row.display_name) === "string" ? String(row.displayName ?? row.display_name) : "",
+    inputCostPer1KTokensUsd: asNumber(row.inputCostPer1KTokensUsd ?? row.input_cost_per_1k_tokens_usd),
+    outputCostPer1KTokensUsd: asNumber(row.outputCostPer1KTokensUsd ?? row.output_cost_per_1k_tokens_usd),
+    currency: typeof row.currency === "string" ? row.currency : "USD",
+    active: typeof row.active === "boolean" ? row.active : true,
+  };
+}
+
+function mapGPUPricing(row: Record<string, unknown>): EnzanGPUPricing {
+  return {
+    provider: typeof row.provider === "string" ? row.provider : "",
+    gpuType: typeof (row.gpuType ?? row.gpu_type) === "string" ? String(row.gpuType ?? row.gpu_type) : "",
+    displayName: typeof (row.displayName ?? row.display_name) === "string" ? String(row.displayName ?? row.display_name) : "",
+    hourlyRateUsd: asNumber(row.hourlyRateUsd ?? row.hourly_rate_usd),
+    currency: typeof row.currency === "string" ? row.currency : "USD",
+    active: typeof row.active === "boolean" ? row.active : true,
   };
 }
 
@@ -111,6 +140,53 @@ export class EnzanClient {
         outputTokens: asNumber(rawTotal.outputTokens ?? rawTotal.output_tokens),
         costUsd: asNumber(rawTotal.costUsd ?? rawTotal.cost_usd),
       },
+    };
+  }
+
+  /** List configured LLM pricing */
+  async listModelPricing(): Promise<EnzanLLMPricing[]> {
+    const raw = await this.http.get<Record<string, unknown>>("/v1/enzan/pricing/models");
+    const rawRows = Array.isArray(raw.models) ? (raw.models as Record<string, unknown>[]) : [];
+    return rawRows.map(mapLLMPricing);
+  }
+
+  /** Upsert one LLM pricing entry */
+  async upsertModelPricing(req: EnzanLLMPricingUpsertRequest): Promise<EnzanLLMPricingMutationResponse> {
+    const raw = await this.http.post<Record<string, unknown>>("/v1/enzan/pricing/models", {
+      provider: req.provider,
+      model: req.model,
+      display_name: req.displayName,
+      input_cost_per_1k_tokens_usd: req.inputCostPer1KTokensUsd,
+      output_cost_per_1k_tokens_usd: req.outputCostPer1KTokensUsd,
+      currency: req.currency,
+      active: req.active,
+    });
+    return {
+      status: typeof raw.status === "string" ? raw.status : "upserted",
+      pricing: mapLLMPricing((raw.pricing ?? {}) as Record<string, unknown>),
+    };
+  }
+
+  /** List configured GPU pricing */
+  async listGPUPricing(): Promise<EnzanGPUPricing[]> {
+    const raw = await this.http.get<Record<string, unknown>>("/v1/enzan/pricing/gpus");
+    const rawRows = Array.isArray(raw.gpus) ? (raw.gpus as Record<string, unknown>[]) : [];
+    return rawRows.map(mapGPUPricing);
+  }
+
+  /** Upsert one GPU pricing entry */
+  async upsertGPUPricing(req: EnzanGPUPricingUpsertRequest): Promise<EnzanGPUPricingMutationResponse> {
+    const raw = await this.http.post<Record<string, unknown>>("/v1/enzan/pricing/gpus", {
+      provider: req.provider,
+      gpu_type: req.gpuType,
+      display_name: req.displayName,
+      hourly_rate_usd: req.hourlyRateUsd,
+      currency: req.currency,
+      active: req.active,
+    });
+    return {
+      status: typeof raw.status === "string" ? raw.status : "upserted",
+      pricing: mapGPUPricing((raw.pricing ?? {}) as Record<string, unknown>),
     };
   }
 
