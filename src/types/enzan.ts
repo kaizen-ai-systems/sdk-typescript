@@ -146,3 +146,33 @@ export interface EnzanBurnResponse {
   burnRateUsdPerHour: number;
   timestamp: string;
 }
+
+export type EnzanRecommendationType =
+  | "model_downgrade"
+  | "duplicate_caching"
+  | "self_host_breakeven"
+  | "spend_anomaly"
+  | "price_arbitrage";
+
+export interface EnzanOptimizeRequest {
+  window?: TimeWindow;
+}
+
+export interface EnzanRecommendation {
+  type: EnzanRecommendationType;
+  title: string;
+  description: string;
+  estimatedSavings: number;
+  confidence: number;
+  suggestion: string;
+}
+
+export interface EnzanOptimizeResponse {
+  window: string;
+  startTime: string;
+  endTime: string;
+  efficiencyScore: number;
+  monthlySpend: number;
+  potentialSavings: number;
+  recommendations: EnzanRecommendation[];
+}

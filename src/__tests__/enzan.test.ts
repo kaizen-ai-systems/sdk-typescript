@@ -123,6 +123,73 @@ describe("EnzanClient.costsByModel", () => {
   });
 });
 
+describe("EnzanClient.optimize", () => {
+  it("maps optimization recommendations with snake_case fallbacks", async () => {
+    const http = {
+      post: vi.fn().mockResolvedValue({
+        window: "30d",
+        startTime: "2026-03-01T00:00:00Z",
+        endTime: "2026-03-30T23:59:59Z",
+        efficiencyScore: 72,
+        monthlySpend: 4500,
+        potentialSavings: 1200,
+        recommendations: [
+          {
+            type: "model_downgrade",
+            title: "Downgrade simple queries",
+            description: "Use gpt-4o-mini for simple classification tasks",
+            estimated_savings: 350,
+            confidence: 0.87,
+            suggestion: "Route simple queries to gpt-4o-mini",
+          },
+          {
+            type: "duplicate_caching",
+            title: "Cache repeated prompts",
+            description: "15% of prompts are near-duplicates",
+            estimatedSavings: 200,
+            confidence: 0.92,
+            suggestion: "Enable semantic caching",
+          },
+        ],
+      }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const response = await client.optimize({ window: "30d" });
+
+    expect(response.efficiencyScore).toBe(72);
+    expect(response.monthlySpend).toBe(4500);
+    expect(response.potentialSavings).toBe(1200);
+    expect(response.recommendations).toHaveLength(2);
+    expect(response.recommendations[0].type).toBe("model_downgrade");
+    expect(response.recommendations[0].estimatedSavings).toBe(350);
+    expect(response.recommendations[1].estimatedSavings).toBe(200);
+    expect(response.recommendations[1].confidence).toBe(0.92);
+    expect(http.post).toHaveBeenCalledWith("/v1/enzan/optimize", { window: "30d" });
+  });
+
+  it("uses default 30d window when no request provided", async () => {
+    const http = {
+      post: vi.fn().mockResolvedValue({
+        window: "30d",
+        startTime: "2026-03-01T00:00:00Z",
+        endTime: "2026-03-30T23:59:59Z",
+        efficiencyScore: 85,
+        monthlySpend: 1000,
+        potentialSavings: 100,
+        recommendations: [],
+      }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const response = await client.optimize();
+
+    expect(response.window).toBe("30d");
+    expect(response.recommendations).toHaveLength(0);
+    expect(http.post).toHaveBeenCalledWith("/v1/enzan/optimize", { window: "30d" });
+  });
+});
+
 describe("EnzanClient pricing catalog", () => {
   it("maps LLM pricing catalog rows and GPU pricing mutation responses", async () => {
     const http = {

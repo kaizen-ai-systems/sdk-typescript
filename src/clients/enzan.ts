@@ -11,6 +11,9 @@ import {
   EnzanModelCategoryBreakdown,
   EnzanModelCostRequest,
   EnzanModelCostResponse,
+  EnzanOptimizeRequest,
+  EnzanOptimizeResponse,
+  EnzanRecommendationType,
   EnzanResource,
   EnzanSummaryRequest,
   EnzanSummaryResponse,
@@ -217,5 +220,31 @@ export class EnzanClient {
   /** Create an alert */
   async createAlert(alert: EnzanAlert): Promise<{ status: string; id: string }> {
     return this.http.post<{ status: string; id: string }>("/v1/enzan/alerts", alert);
+  }
+
+  /** Get optimization recommendations */
+  async optimize(req: EnzanOptimizeRequest = {}): Promise<EnzanOptimizeResponse> {
+    const raw = await this.http.post<Record<string, unknown>>("/v1/enzan/optimize", {
+      window: req.window ?? "30d",
+    });
+    const rawRecs = Array.isArray(raw.recommendations)
+      ? (raw.recommendations as Record<string, unknown>[])
+      : [];
+    return {
+      window: typeof raw.window === "string" ? raw.window : (req.window ?? "30d"),
+      startTime: typeof raw.startTime === "string" ? raw.startTime : "",
+      endTime: typeof raw.endTime === "string" ? raw.endTime : "",
+      efficiencyScore: asNumber(raw.efficiencyScore),
+      monthlySpend: asNumber(raw.monthlySpend),
+      potentialSavings: asNumber(raw.potentialSavings),
+      recommendations: rawRecs.map((r) => ({
+        type: (typeof r.type === "string" ? r.type : "model_downgrade") as EnzanRecommendationType,
+        title: typeof r.title === "string" ? r.title : "",
+        description: typeof r.description === "string" ? r.description : "",
+        estimatedSavings: asNumber(r.estimatedSavings ?? r.estimated_savings),
+        confidence: asNumber(r.confidence),
+        suggestion: typeof r.suggestion === "string" ? r.suggestion : "",
+      })),
+    };
   }
 }
