@@ -102,6 +102,6 @@ export class HttpClient {
       throw new KaizenRateLimitError(message, Number.isFinite(retryAfter) ? retryAfter : undefined, requestId);
     }
 
-    throw new KaizenError(message, status, undefined, requestId);
+    throw new KaizenError(message, status, undefined, requestId, data as Record<string, unknown>);
   }
 }

@@ -14,6 +14,9 @@ import {
   EnzanOptimizeRequest,
   EnzanOptimizeResponse,
   EnzanRecommendationType,
+  EnzanChatRequest,
+  EnzanChatResponse,
+  EnzanSuggestedAction,
   EnzanResource,
   EnzanSummaryRequest,
   EnzanSummaryResponse,
@@ -245,6 +248,47 @@ export class EnzanClient {
         confidence: asNumber(r.confidence),
         suggestion: typeof r.suggestion === "string" ? r.suggestion : "",
       })),
+    };
+  }
+
+  /** Conversational AI cost Q&A with multi-turn support. */
+  async chat(req: EnzanChatRequest): Promise<EnzanChatResponse> {
+    const payload: Record<string, unknown> = { message: req.message };
+    if (req.conversationId) payload.conversationId = req.conversationId;
+    if (req.window) payload.window = req.window;
+
+    const raw = await this.http.post<Record<string, unknown>>(
+      "/v1/enzan/chat",
+      payload,
+    );
+
+    const rawActions = Array.isArray(raw.suggestedActions)
+      ? (raw.suggestedActions as Record<string, unknown>[])
+      : [];
+
+    return {
+      conversationId:
+        typeof raw.conversationId === "string" ? raw.conversationId : "",
+      message: typeof raw.message === "string" ? raw.message : "",
+      effectiveWindow:
+        typeof raw.effectiveWindow === "string"
+          ? (raw.effectiveWindow as EnzanChatResponse["effectiveWindow"])
+          : undefined,
+      suggestedActions: rawActions.map(
+        (a) =>
+          ({
+            type: typeof a.type === "string" ? a.type : "set_window",
+            label: typeof a.label === "string" ? a.label : "",
+            ...(typeof a.window === "string" ? { window: a.window } : {}),
+            ...(typeof a.model === "string" ? { model: a.model } : {}),
+          }) as EnzanSuggestedAction,
+      ),
+      supportingData:
+        raw.supportingData &&
+        typeof raw.supportingData === "object" &&
+        !Array.isArray(raw.supportingData)
+          ? (raw.supportingData as Record<string, unknown>)
+          : undefined,
     };
   }
 }

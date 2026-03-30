@@ -176,3 +176,32 @@ export interface EnzanOptimizeResponse {
   potentialSavings: number;
   recommendations: EnzanRecommendation[];
 }
+
+// ─── Chat types ──────────────────────────────────────────────────────────────
+
+export interface EnzanChatRequest {
+  message: string;
+  conversationId?: string;
+  window?: TimeWindow;
+}
+
+export type EnzanSuggestedAction =
+  | { type: "set_window"; label: string; window: TimeWindow }
+  | { type: "view_summary"; label: string; window: TimeWindow }
+  | {
+      type: "view_costs_by_model";
+      label: string;
+      window: TimeWindow;
+      model?: string;
+    }
+  | { type: "view_optimizer"; label: string; window: TimeWindow }
+  | { type: "view_model_pricing"; label: string }
+  | { type: "view_gpu_pricing"; label: string };
+
+export interface EnzanChatResponse {
+  conversationId: string;
+  message: string;
+  effectiveWindow?: TimeWindow;
+  suggestedActions: EnzanSuggestedAction[];
+  supportingData?: Record<string, unknown>;
+}
