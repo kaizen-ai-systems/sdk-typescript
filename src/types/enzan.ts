@@ -1,6 +1,21 @@
 export type TimeWindow = "1h" | "24h" | "7d" | "30d";
 export type GroupByDimension = "project" | "model" | "team" | "provider" | "endpoint";
-export type AlertType = "cost_threshold" | "cost_anomaly" | "usage_spike" | "idle_resource" | "budget_exceeded";
+export type AlertType =
+  | "cost_threshold"
+  | "cost_anomaly"
+  | "usage_spike"
+  | "idle_resource"
+  | "budget_exceeded"
+  | "optimization_available"
+  | "pricing_change"
+  | "daily_summary";
+
+export type CreatableAlertType =
+  | "cost_threshold"
+  | "budget_exceeded"
+  | "optimization_available"
+  | "pricing_change"
+  | "daily_summary";
 
 export interface EnzanSummaryRequest {
   window: TimeWindow;
@@ -140,6 +155,90 @@ export interface EnzanAlert {
   window: string;
   labels?: Record<string, string>;
   enabled: boolean;
+}
+
+interface EnzanCreateAlertRequestBase {
+  id?: string;
+  name: string;
+  labels?: Record<string, string>;
+  enabled?: boolean;
+}
+
+export interface EnzanCreateCostThresholdAlertRequest extends EnzanCreateAlertRequestBase {
+  type: "cost_threshold";
+  threshold: number;
+  window: TimeWindow;
+}
+
+export interface EnzanCreateBudgetExceededAlertRequest extends EnzanCreateAlertRequestBase {
+  type: "budget_exceeded";
+  threshold: number;
+  window?: string;
+}
+
+export interface EnzanCreateOptimizationAvailableAlertRequest extends EnzanCreateAlertRequestBase {
+  type: "optimization_available";
+  window?: TimeWindow;
+}
+
+export interface EnzanCreatePricingChangeAlertRequest extends EnzanCreateAlertRequestBase {
+  type: "pricing_change";
+}
+
+export interface EnzanCreateDailySummaryAlertRequest extends EnzanCreateAlertRequestBase {
+  type: "daily_summary";
+  window?: "24h";
+}
+
+export type EnzanCreateAlertRequest =
+  | EnzanCreateCostThresholdAlertRequest
+  | EnzanCreateBudgetExceededAlertRequest
+  | EnzanCreateOptimizationAvailableAlertRequest
+  | EnzanCreatePricingChangeAlertRequest
+  | EnzanCreateDailySummaryAlertRequest;
+
+export interface EnzanAlertEndpoint {
+  id: string;
+  kind: "webhook";
+  targetUrl: string;
+  hasSigningSecret: boolean;
+  enabled: boolean;
+  lastUsedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EnzanAlertEndpointCreateRequest {
+  targetUrl: string;
+  signingSecret?: string;
+}
+
+export interface EnzanAlertEndpointMutationResponse {
+  status: string;
+  endpoint: EnzanAlertEndpoint;
+}
+
+export interface EnzanAlertEvent {
+  id: string;
+  ruleId?: string;
+  type: AlertType;
+  dedupeKey: string;
+  payload: Record<string, unknown>;
+  triggeredAt: string;
+}
+
+export interface EnzanAlertDelivery {
+  id: string;
+  eventId: string;
+  endpointId?: string;
+  status: "pending" | "sent" | "failed";
+  retryCount: number;
+  nextRetryAt: string;
+  lastAttemptedAt?: string;
+  lastResponseCode?: number;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface EnzanBurnResponse {

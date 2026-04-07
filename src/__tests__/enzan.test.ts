@@ -241,3 +241,51 @@ describe("EnzanClient pricing catalog", () => {
     });
   });
 });
+
+describe("EnzanClient alert history", () => {
+  it("maps alert events and deliveries and forwards optional limits", async () => {
+    const http = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce({
+          events: [
+            {
+              id: "event-1",
+              ruleId: "rule-1",
+              type: "cost_threshold",
+              dedupeKey: "cost_threshold:rule-1:2026-04-04",
+              payload: { threshold: 10, spend: 12.5 },
+              triggeredAt: "2026-04-04T12:00:00Z",
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          deliveries: [
+            {
+              id: "delivery-1",
+              eventId: "event-1",
+              endpointId: "endpoint-1",
+              status: "sent",
+              retryCount: 1,
+              nextRetryAt: "2026-04-04T12:00:00Z",
+              lastAttemptedAt: "2026-04-04T12:00:30Z",
+              lastResponseCode: 202,
+              createdAt: "2026-04-04T12:00:00Z",
+              updatedAt: "2026-04-04T12:00:30Z",
+            },
+          ],
+        }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const events = await client.listAlertEvents(25);
+    const deliveries = await client.listAlertDeliveries(10);
+
+    expect(events[0].ruleId).toBe("rule-1");
+    expect(events[0].payload.threshold).toBe(10);
+    expect(deliveries[0].endpointId).toBe("endpoint-1");
+    expect(deliveries[0].lastResponseCode).toBe(202);
+    expect(http.get).toHaveBeenNthCalledWith(1, "/v1/enzan/alerts/events?limit=25");
+    expect(http.get).toHaveBeenNthCalledWith(2, "/v1/enzan/alerts/deliveries?limit=10");
+  });
+});

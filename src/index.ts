@@ -29,7 +29,14 @@ export type {
 
 export type {
   AlertType,
+  CreatableAlertType,
   EnzanAlert,
+  EnzanCreateAlertRequest,
+  EnzanAlertDelivery,
+  EnzanAlertEndpoint,
+  EnzanAlertEndpointCreateRequest,
+  EnzanAlertEndpointMutationResponse,
+  EnzanAlertEvent,
   EnzanBurnResponse,
   EnzanGPUPricing,
   EnzanGPUPricingMutationResponse,

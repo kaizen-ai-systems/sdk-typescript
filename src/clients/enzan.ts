@@ -1,6 +1,12 @@
 import { HttpClient } from "../core/http";
 import {
   EnzanAlert,
+  EnzanCreateAlertRequest,
+  EnzanAlertDelivery,
+  EnzanAlertEndpoint,
+  EnzanAlertEndpointCreateRequest,
+  EnzanAlertEvent,
+  EnzanAlertEndpointMutationResponse,
   EnzanBurnResponse,
   EnzanGPUPricing,
   EnzanGPUPricingMutationResponse,
@@ -82,6 +88,53 @@ function mapGPUPricing(row: Record<string, unknown>): EnzanGPUPricing {
     hourlyRateUsd: asNumber(row.hourlyRateUsd ?? row.hourly_rate_usd),
     currency: typeof row.currency === "string" ? row.currency : "USD",
     active: typeof row.active === "boolean" ? row.active : true,
+  };
+}
+
+function mapAlertEndpoint(row: Record<string, unknown>): EnzanAlertEndpoint {
+  return {
+    id: typeof row.id === "string" ? row.id : "",
+    kind: "webhook",
+    targetUrl: typeof row.targetUrl === "string" ? row.targetUrl : "",
+    hasSigningSecret: typeof row.hasSigningSecret === "boolean" ? row.hasSigningSecret : false,
+    enabled: typeof row.enabled === "boolean" ? row.enabled : true,
+    lastUsedAt: typeof row.lastUsedAt === "string" ? row.lastUsedAt : undefined,
+    createdAt: typeof row.createdAt === "string" ? row.createdAt : "",
+    updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : "",
+  };
+}
+
+function mapAlertEvent(row: Record<string, unknown>): EnzanAlertEvent {
+  return {
+    id: typeof row.id === "string" ? row.id : "",
+    ruleId: typeof row.ruleId === "string" ? row.ruleId : undefined,
+    type: (typeof row.type === "string" ? row.type : "cost_threshold") as EnzanAlertEvent["type"],
+    dedupeKey: typeof row.dedupeKey === "string" ? row.dedupeKey : "",
+    payload:
+      row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
+        ? (row.payload as Record<string, unknown>)
+        : {},
+    triggeredAt: typeof row.triggeredAt === "string" ? row.triggeredAt : "",
+  };
+}
+
+function mapAlertDelivery(row: Record<string, unknown>): EnzanAlertDelivery {
+  const status =
+    row.status === "pending" || row.status === "sent" || row.status === "failed"
+      ? row.status
+      : "pending";
+  return {
+    id: typeof row.id === "string" ? row.id : "",
+    eventId: typeof row.eventId === "string" ? row.eventId : "",
+    endpointId: typeof row.endpointId === "string" ? row.endpointId : undefined,
+    status,
+    retryCount: asNumber(row.retryCount),
+    nextRetryAt: typeof row.nextRetryAt === "string" ? row.nextRetryAt : "",
+    lastAttemptedAt: typeof row.lastAttemptedAt === "string" ? row.lastAttemptedAt : undefined,
+    lastResponseCode: typeof row.lastResponseCode === "number" ? row.lastResponseCode : undefined,
+    lastError: typeof row.lastError === "string" && row.lastError !== "" ? row.lastError : undefined,
+    createdAt: typeof row.createdAt === "string" ? row.createdAt : "",
+    updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : "",
   };
 }
 
@@ -221,8 +274,54 @@ export class EnzanClient {
   }
 
   /** Create an alert */
-  async createAlert(alert: EnzanAlert): Promise<{ status: string; id: string }> {
+  async createAlert(alert: EnzanCreateAlertRequest): Promise<{ status: string; id: string }> {
     return this.http.post<{ status: string; id: string }>("/v1/enzan/alerts", alert);
+  }
+
+  /** List alert delivery webhook endpoints */
+  async listAlertEndpoints(): Promise<EnzanAlertEndpoint[]> {
+    const raw = await this.http.get<Record<string, unknown>>("/v1/enzan/alerts/endpoints");
+    const rows = Array.isArray(raw.endpoints) ? (raw.endpoints as Record<string, unknown>[]) : [];
+    return rows.map(mapAlertEndpoint);
+  }
+
+  /** Create an alert delivery webhook endpoint */
+  async createAlertEndpoint(req: EnzanAlertEndpointCreateRequest): Promise<EnzanAlertEndpointMutationResponse> {
+    const raw = await this.http.post<Record<string, unknown>>("/v1/enzan/alerts/endpoints", {
+      targetUrl: req.targetUrl,
+      signingSecret: req.signingSecret,
+    });
+    return {
+      status: typeof raw.status === "string" ? raw.status : "created",
+      endpoint: mapAlertEndpoint((raw.endpoint ?? {}) as Record<string, unknown>),
+    };
+  }
+
+  /** List recent alert events */
+  async listAlertEvents(limit?: number): Promise<EnzanAlertEvent[]> {
+    const path =
+      typeof limit === "number" && limit > 0
+        ? `/v1/enzan/alerts/events?limit=${encodeURIComponent(String(limit))}`
+        : "/v1/enzan/alerts/events";
+    const raw = await this.http.get<Record<string, unknown>>(path);
+    const rows = Array.isArray(raw.events) ? (raw.events as Record<string, unknown>[]) : [];
+    return rows.map(mapAlertEvent);
+  }
+
+  /** List recent alert deliveries */
+  async listAlertDeliveries(limit?: number): Promise<EnzanAlertDelivery[]> {
+    const path =
+      typeof limit === "number" && limit > 0
+        ? `/v1/enzan/alerts/deliveries?limit=${encodeURIComponent(String(limit))}`
+        : "/v1/enzan/alerts/deliveries";
+    const raw = await this.http.get<Record<string, unknown>>(path);
+    const rows = Array.isArray(raw.deliveries) ? (raw.deliveries as Record<string, unknown>[]) : [];
+    return rows.map(mapAlertDelivery);
+  }
+
+  /** Delete an alert delivery webhook endpoint */
+  async deleteAlertEndpoint(id: string): Promise<{ status: string; id: string }> {
+    return this.http.request<{ status: string; id: string }>("DELETE", `/v1/enzan/alerts/endpoints/${encodeURIComponent(id)}`);
   }
 
   /** Get optimization recommendations */
@@ -256,6 +355,11 @@ export class EnzanClient {
     const payload: Record<string, unknown> = { message: req.message };
     if (req.conversationId) payload.conversationId = req.conversationId;
     if (req.window) payload.window = req.window;
+    // Pass through extra properties (e.g., dashboard-internal `synthetic` hint)
+    // that callers may add via type-cast without polluting the public SDK type.
+    for (const [k, v] of Object.entries(req)) {
+      if (!(k in payload) && v !== undefined) payload[k] = v;
+    }
 
     const raw = await this.http.post<Record<string, unknown>>(
       "/v1/enzan/chat",
