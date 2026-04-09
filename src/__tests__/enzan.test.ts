@@ -289,3 +289,57 @@ describe("EnzanClient alert history", () => {
     expect(http.get).toHaveBeenNthCalledWith(2, "/v1/enzan/alerts/deliveries?limit=10");
   });
 });
+
+describe("EnzanClient alert management", () => {
+  it("updates and deletes alerts and updates endpoints", async () => {
+    const http = {
+      request: vi
+        .fn()
+        .mockResolvedValueOnce({
+          status: "updated",
+          alert: {
+            id: "alert-1",
+            name: "Updated alert",
+            type: "cost_threshold",
+            threshold: 20,
+            window: "7d",
+            labels: { team: "finance" },
+            enabled: false,
+          },
+        })
+        .mockResolvedValueOnce({
+          status: "deleted",
+          id: "alert-1",
+        })
+        .mockResolvedValueOnce({
+          status: "updated",
+          endpoint: {
+            id: "endpoint-1",
+            kind: "webhook",
+            targetUrl: "https://hooks.example.com/new",
+            hasSigningSecret: true,
+            enabled: false,
+            createdAt: "2026-04-08T00:00:00Z",
+            updatedAt: "2026-04-08T00:05:00Z",
+          },
+        }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const updatedAlert = await client.updateAlert("alert-1", { enabled: false, window: "" });
+    const deletedAlert = await client.deleteAlert("alert-1");
+    const updatedEndpoint = await client.updateAlertEndpoint("endpoint-1", { signingSecret: "", enabled: false });
+
+    expect(updatedAlert.alert.enabled).toBe(false);
+    expect(updatedAlert.alert.window).toBe("7d");
+    expect(deletedAlert.id).toBe("alert-1");
+    expect(updatedEndpoint.endpoint.enabled).toBe(false);
+    expect(http.request).toHaveBeenNthCalledWith(1, "PATCH", "/v1/enzan/alerts/alert-1", { enabled: false, window: "" });
+    expect(http.request).toHaveBeenNthCalledWith(2, "DELETE", "/v1/enzan/alerts/alert-1");
+    expect(http.request).toHaveBeenNthCalledWith(3, "PATCH", "/v1/enzan/alerts/endpoints/endpoint-1", {
+      targetUrl: undefined,
+      signingSecret: "",
+      enabled: false,
+    });
+  });
+});

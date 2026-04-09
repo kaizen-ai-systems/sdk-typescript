@@ -1,12 +1,14 @@
 import { HttpClient } from "../core/http";
 import {
   EnzanAlert,
+  EnzanAlertMutationResponse,
   EnzanCreateAlertRequest,
   EnzanAlertDelivery,
   EnzanAlertEndpoint,
   EnzanAlertEndpointCreateRequest,
   EnzanAlertEvent,
   EnzanAlertEndpointMutationResponse,
+  EnzanAlertEndpointUpdateRequest,
   EnzanBurnResponse,
   EnzanGPUPricing,
   EnzanGPUPricingMutationResponse,
@@ -27,6 +29,7 @@ import {
   EnzanSummaryRequest,
   EnzanSummaryResponse,
   EnzanSummaryRow,
+  EnzanUpdateAlertRequest,
 } from "../types/enzan";
 
 function asNumber(value: unknown): number {
@@ -278,6 +281,20 @@ export class EnzanClient {
     return this.http.post<{ status: string; id: string }>("/v1/enzan/alerts", alert);
   }
 
+  /** Update an alert */
+  async updateAlert(id: string, alert: EnzanUpdateAlertRequest): Promise<EnzanAlertMutationResponse> {
+    const raw = await this.http.request<Record<string, unknown>>("PATCH", `/v1/enzan/alerts/${encodeURIComponent(id)}`, alert);
+    return {
+      status: typeof raw.status === "string" ? raw.status : "updated",
+      alert: ((raw.alert ?? {}) as EnzanAlert),
+    };
+  }
+
+  /** Delete an alert */
+  async deleteAlert(id: string): Promise<{ status: string; id: string }> {
+    return this.http.request<{ status: string; id: string }>("DELETE", `/v1/enzan/alerts/${encodeURIComponent(id)}`);
+  }
+
   /** List alert delivery webhook endpoints */
   async listAlertEndpoints(): Promise<EnzanAlertEndpoint[]> {
     const raw = await this.http.get<Record<string, unknown>>("/v1/enzan/alerts/endpoints");
@@ -293,6 +310,19 @@ export class EnzanClient {
     });
     return {
       status: typeof raw.status === "string" ? raw.status : "created",
+      endpoint: mapAlertEndpoint((raw.endpoint ?? {}) as Record<string, unknown>),
+    };
+  }
+
+  /** Update an alert delivery webhook endpoint */
+  async updateAlertEndpoint(id: string, req: EnzanAlertEndpointUpdateRequest): Promise<EnzanAlertEndpointMutationResponse> {
+    const raw = await this.http.request<Record<string, unknown>>("PATCH", `/v1/enzan/alerts/endpoints/${encodeURIComponent(id)}`, {
+      targetUrl: req.targetUrl,
+      signingSecret: req.signingSecret,
+      enabled: req.enabled,
+    });
+    return {
+      status: typeof raw.status === "string" ? raw.status : "updated",
       endpoint: mapAlertEndpoint((raw.endpoint ?? {}) as Record<string, unknown>),
     };
   }

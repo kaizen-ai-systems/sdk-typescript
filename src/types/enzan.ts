@@ -197,6 +197,19 @@ export type EnzanCreateAlertRequest =
   | EnzanCreatePricingChangeAlertRequest
   | EnzanCreateDailySummaryAlertRequest;
 
+export interface EnzanUpdateAlertRequest {
+  name?: string;
+  threshold?: number;
+  window?: TimeWindow | "";
+  labels?: Record<string, string>;
+  enabled?: boolean;
+}
+
+export interface EnzanAlertMutationResponse {
+  status: string;
+  alert: EnzanAlert;
+}
+
 export interface EnzanAlertEndpoint {
   id: string;
   kind: "webhook";
@@ -211,6 +224,12 @@ export interface EnzanAlertEndpoint {
 export interface EnzanAlertEndpointCreateRequest {
   targetUrl: string;
   signingSecret?: string;
+}
+
+export interface EnzanAlertEndpointUpdateRequest {
+  targetUrl?: string;
+  signingSecret?: string;
+  enabled?: boolean;
 }
 
 export interface EnzanAlertEndpointMutationResponse {
