@@ -12,6 +12,7 @@ export type AlertType =
 
 export type CreatableAlertType =
   | "cost_threshold"
+  | "cost_anomaly"
   | "budget_exceeded"
   | "optimization_available"
   | "pricing_change"
@@ -155,6 +156,9 @@ export interface EnzanAlert {
   window: string;
   labels?: Record<string, string>;
   enabled: boolean;
+  evaluationState?: "active" | "warming_up" | "waiting_for_data";
+  nextEligibleAt?: string;
+  statusReason?: string;
 }
 
 interface EnzanCreateAlertRequestBase {
@@ -168,6 +172,12 @@ export interface EnzanCreateCostThresholdAlertRequest extends EnzanCreateAlertRe
   type: "cost_threshold";
   threshold: number;
   window: TimeWindow;
+}
+
+export interface EnzanCreateCostAnomalyAlertRequest extends EnzanCreateAlertRequestBase {
+  type: "cost_anomaly";
+  threshold: number;
+  window: Exclude<TimeWindow, "1h">;
 }
 
 export interface EnzanCreateBudgetExceededAlertRequest extends EnzanCreateAlertRequestBase {
@@ -192,6 +202,7 @@ export interface EnzanCreateDailySummaryAlertRequest extends EnzanCreateAlertReq
 
 export type EnzanCreateAlertRequest =
   | EnzanCreateCostThresholdAlertRequest
+  | EnzanCreateCostAnomalyAlertRequest
   | EnzanCreateBudgetExceededAlertRequest
   | EnzanCreateOptimizationAvailableAlertRequest
   | EnzanCreatePricingChangeAlertRequest
