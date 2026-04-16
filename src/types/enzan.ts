@@ -99,6 +99,52 @@ export interface EnzanModelCostResponse {
   total: { queries: number; promptTokens: number; outputTokens: number; costUsd: number };
 }
 
+export interface EnzanRoutingConfig {
+  enabled: boolean;
+  provider: string;
+  defaultModel: string;
+  simpleModel?: string;
+  moderateModel?: string;
+  complexModel?: string;
+  updatedAt?: string;
+}
+
+export interface EnzanRoutingConfigUpsertRequest {
+  enabled: boolean;
+  simpleModel?: string;
+  moderateModel?: string;
+  complexModel?: string;
+}
+
+export interface EnzanRoutingConfigMutationResponse {
+  status: string;
+  routing: EnzanRoutingConfig;
+}
+
+export interface EnzanRoutingSavingsBreakdown {
+  promptCategory: string;
+  originalModel: string;
+  routedModel: string;
+  queries: number;
+  actualCostUsd: number;
+  counterfactualCostUsd: number;
+  estimatedSavingsUsd: number;
+}
+
+export interface EnzanRoutingSavingsResponse {
+  window: string;
+  startTime: string;
+  endTime: string;
+  provider: string;
+  defaultModel: string;
+  totalQueries: number;
+  routedQueries: number;
+  actualCostUsd: number;
+  counterfactualCostUsd: number;
+  estimatedSavingsUsd: number;
+  breakdown: EnzanRoutingSavingsBreakdown[];
+}
+
 export interface EnzanLLMPricing {
   provider: string;
   model: string;

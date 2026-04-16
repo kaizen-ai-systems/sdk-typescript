@@ -123,6 +123,84 @@ describe("EnzanClient.costsByModel", () => {
   });
 });
 
+describe("EnzanClient routing", () => {
+  it("maps routing config and savings responses from snake_case payloads", async () => {
+    const http = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce({
+          routing: {
+            enabled: true,
+            provider: "openai",
+            default_model: "gpt-4.1",
+            simple_model: "gpt-4o-mini",
+            updated_at: "2026-04-16T12:00:00Z",
+          },
+        })
+        .mockResolvedValueOnce({
+          window: "7d",
+          start_time: "2026-04-09T00:00:00Z",
+          end_time: "2026-04-16T00:00:00Z",
+          provider: "openai",
+          default_model: "gpt-4.1",
+          total_queries: 12,
+          routed_queries: 8,
+          actual_cost_usd: 1.2,
+          counterfactual_cost_usd: 2.4,
+          estimated_savings_usd: 1.2,
+          breakdown: [
+            {
+              prompt_category: "simple",
+              original_model: "gpt-4.1",
+              routed_model: "gpt-4o-mini",
+              queries: 8,
+              actual_cost_usd: 1.2,
+              counterfactual_cost_usd: 2.4,
+              estimated_savings_usd: 1.2,
+            },
+          ],
+        }),
+      post: vi.fn().mockResolvedValue({
+        status: "upserted",
+        routing: {
+          enabled: true,
+          provider: "openai",
+          default_model: "gpt-4.1",
+          simple_model: "gpt-4o-mini",
+        },
+      }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const routing = await client.routing();
+    const mutation = await client.setRouting({ enabled: true, simpleModel: "gpt-4o-mini" });
+    const savings = await client.routingSavings("7d");
+
+    expect(routing.defaultModel).toBe("gpt-4.1");
+    expect(routing.simpleModel).toBe("gpt-4o-mini");
+    expect(mutation.routing.provider).toBe("openai");
+    expect(savings.routedQueries).toBe(8);
+    expect(savings.breakdown[0].promptCategory).toBe("simple");
+    expect(http.post).toHaveBeenCalledWith("/v1/enzan/routing", {
+      enabled: true,
+      simple_model: "gpt-4o-mini",
+    });
+    expect(http.get).toHaveBeenNthCalledWith(2, "/v1/enzan/routing/savings?window=7d");
+  });
+
+  it("rejects missing enabled before sending the request", async () => {
+    const http = {
+      get: vi.fn(),
+      post: vi.fn(),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+
+    await expect(client.setRouting({ simpleModel: "gpt-4o-mini" } as never)).rejects.toThrow("enabled is required");
+    expect(http.post).not.toHaveBeenCalled();
+  });
+});
+
 describe("EnzanClient.optimize", () => {
   it("maps optimization recommendations with snake_case fallbacks", async () => {
     const http = {

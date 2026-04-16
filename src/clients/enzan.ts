@@ -16,6 +16,11 @@ import {
   EnzanLLMPricing,
   EnzanLLMPricingMutationResponse,
   EnzanLLMPricingUpsertRequest,
+  EnzanRoutingConfig,
+  EnzanRoutingConfigMutationResponse,
+  EnzanRoutingConfigUpsertRequest,
+  EnzanRoutingSavingsBreakdown,
+  EnzanRoutingSavingsResponse,
   EnzanModelCategoryBreakdown,
   EnzanModelCostRequest,
   EnzanModelCostResponse,
@@ -91,6 +96,36 @@ function mapGPUPricing(row: Record<string, unknown>): EnzanGPUPricing {
     hourlyRateUsd: asNumber(row.hourlyRateUsd ?? row.hourly_rate_usd),
     currency: typeof row.currency === "string" ? row.currency : "USD",
     active: typeof row.active === "boolean" ? row.active : true,
+  };
+}
+
+function mapRoutingConfig(row: Record<string, unknown>): EnzanRoutingConfig {
+  return {
+    enabled: typeof row.enabled === "boolean" ? row.enabled : false,
+    provider: typeof row.provider === "string" ? row.provider : "",
+    defaultModel: typeof (row.defaultModel ?? row.default_model) === "string" ? String(row.defaultModel ?? row.default_model) : "",
+    simpleModel:
+      typeof (row.simpleModel ?? row.simple_model) === "string" ? String(row.simpleModel ?? row.simple_model) : undefined,
+    moderateModel:
+      typeof (row.moderateModel ?? row.moderate_model) === "string" ? String(row.moderateModel ?? row.moderate_model) : undefined,
+    complexModel:
+      typeof (row.complexModel ?? row.complex_model) === "string" ? String(row.complexModel ?? row.complex_model) : undefined,
+    updatedAt: typeof (row.updatedAt ?? row.updated_at) === "string" ? String(row.updatedAt ?? row.updated_at) : undefined,
+  };
+}
+
+function mapRoutingSavingsBreakdown(row: Record<string, unknown>): EnzanRoutingSavingsBreakdown {
+  return {
+    promptCategory:
+      typeof (row.promptCategory ?? row.prompt_category) === "string" ? String(row.promptCategory ?? row.prompt_category) : "",
+    originalModel:
+      typeof (row.originalModel ?? row.original_model) === "string" ? String(row.originalModel ?? row.original_model) : "",
+    routedModel:
+      typeof (row.routedModel ?? row.routed_model) === "string" ? String(row.routedModel ?? row.routed_model) : "",
+    queries: asNumber(row.queries),
+    actualCostUsd: asNumber(row.actualCostUsd ?? row.actual_cost_usd),
+    counterfactualCostUsd: asNumber(row.counterfactualCostUsd ?? row.counterfactual_cost_usd),
+    estimatedSavingsUsd: asNumber(row.estimatedSavingsUsd ?? row.estimated_savings_usd),
   };
 }
 
@@ -210,6 +245,60 @@ export class EnzanClient {
     const raw = await this.http.get<Record<string, unknown>>("/v1/enzan/pricing/models");
     const rawRows = Array.isArray(raw.models) ? (raw.models as Record<string, unknown>[]) : [];
     return rawRows.map(mapLLMPricing);
+  }
+
+  /** Get current smart-routing config */
+  async routing(): Promise<EnzanRoutingConfig> {
+    const raw = await this.http.get<Record<string, unknown>>("/v1/enzan/routing");
+    return mapRoutingConfig((raw.routing ?? {}) as Record<string, unknown>);
+  }
+
+  /** Upsert current smart-routing config */
+  async setRouting(req: EnzanRoutingConfigUpsertRequest): Promise<EnzanRoutingConfigMutationResponse> {
+    if (typeof req.enabled !== "boolean") {
+      throw new Error("enabled is required");
+    }
+    const payload: Record<string, unknown> = {
+      enabled: req.enabled,
+    };
+    if (typeof req.simpleModel === "string") {
+      payload.simple_model = req.simpleModel;
+    }
+    if (typeof req.moderateModel === "string") {
+      payload.moderate_model = req.moderateModel;
+    }
+    if (typeof req.complexModel === "string") {
+      payload.complex_model = req.complexModel;
+    }
+    const raw = await this.http.post<Record<string, unknown>>("/v1/enzan/routing", payload);
+    return {
+      status: typeof raw.status === "string" ? raw.status : "upserted",
+      routing: mapRoutingConfig((raw.routing ?? {}) as Record<string, unknown>),
+    };
+  }
+
+  /** Get realized smart-routing savings for a time window */
+  async routingSavings(window?: "1h" | "24h" | "7d" | "30d"): Promise<EnzanRoutingSavingsResponse> {
+    const path =
+      typeof window === "string" && window.length > 0
+        ? `/v1/enzan/routing/savings?window=${encodeURIComponent(window)}`
+        : "/v1/enzan/routing/savings";
+    const raw = await this.http.get<Record<string, unknown>>(path);
+    const rawBreakdown = Array.isArray(raw.breakdown) ? (raw.breakdown as Record<string, unknown>[]) : [];
+    return {
+      window: typeof raw.window === "string" ? raw.window : (window ?? "30d"),
+      startTime: typeof (raw.startTime ?? raw.start_time) === "string" ? String(raw.startTime ?? raw.start_time) : "",
+      endTime: typeof (raw.endTime ?? raw.end_time) === "string" ? String(raw.endTime ?? raw.end_time) : "",
+      provider: typeof raw.provider === "string" ? raw.provider : "",
+      defaultModel:
+        typeof (raw.defaultModel ?? raw.default_model) === "string" ? String(raw.defaultModel ?? raw.default_model) : "",
+      totalQueries: asNumber(raw.totalQueries ?? raw.total_queries),
+      routedQueries: asNumber(raw.routedQueries ?? raw.routed_queries),
+      actualCostUsd: asNumber(raw.actualCostUsd ?? raw.actual_cost_usd),
+      counterfactualCostUsd: asNumber(raw.counterfactualCostUsd ?? raw.counterfactual_cost_usd),
+      estimatedSavingsUsd: asNumber(raw.estimatedSavingsUsd ?? raw.estimated_savings_usd),
+      breakdown: rawBreakdown.map(mapRoutingSavingsBreakdown),
+    };
   }
 
   /** Upsert one LLM pricing entry */
