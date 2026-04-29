@@ -22,8 +22,13 @@ export class KaizenAuthError extends KaizenError {
 }
 
 export class KaizenRateLimitError extends KaizenError {
-  constructor(message = "Rate limit exceeded", public retryAfter?: number, requestId?: string) {
-    super(message, 429, "RATE_LIMIT", requestId);
+  constructor(
+    message = "Rate limit exceeded",
+    public retryAfter?: number,
+    requestId?: string,
+    data?: Record<string, unknown>,
+  ) {
+    super(message, 429, "RATE_LIMIT", requestId, data);
     this.name = "KaizenRateLimitError";
   }
 }

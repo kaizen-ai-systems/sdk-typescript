@@ -41,6 +41,38 @@ describe("HttpClient", () => {
     });
   });
 
+  it("preserves typed 429 body on err.data when driven through real fetch transport", async () => {
+    // Real-transport test for the new err.data preservation logic.
+    // Drives a {status:"dropped",triggeredBy:...} body through fetch -> HttpClient
+    // -> KaizenRateLimitError so the data round-trips through the actual
+    // throwIfHttpError path, not a fake-error injection.
+    fetchMock.mockResolvedValue(
+      mockResponse(
+        { status: "dropped", triggeredBy: "33333333-3333-3333-3333-333333333333" },
+        429,
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new HttpClient({ baseUrl: "https://example.com", apiKey: "k" });
+    await expect(client.post("/v1/enzan/pricing/refresh", {})).rejects.toMatchObject({
+      name: KaizenRateLimitError.name,
+      status: 429,
+      data: { status: "dropped", triggeredBy: "33333333-3333-3333-3333-333333333333" },
+    });
+  });
+
+  it("preserves typed 409 body on err.data when driven through real fetch transport", async () => {
+    fetchMock.mockResolvedValue(mockResponse({ status: "stale" }, 409));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new HttpClient({ baseUrl: "https://example.com", apiKey: "k" });
+    await expect(client.post("/v1/enzan/pricing/offers", { gpu: {} })).rejects.toMatchObject({
+      status: 409,
+      data: { status: "stale" },
+    });
+  });
+
   it("sends SDK user agent header in server runtime", async () => {
     fetchMock.mockResolvedValue(mockResponse({ ok: true }, 200));
     vi.stubGlobal("fetch", fetchMock);

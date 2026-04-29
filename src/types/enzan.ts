@@ -174,6 +174,159 @@ export interface EnzanGPUPricingMutationResponse {
   pricing: EnzanGPUPricing;
 }
 
+/**
+ * Live-pricing enum aliases.
+ *
+ * These are typed as `string` rather than closed unions so server-side
+ * contract drift (an unknown new enum value) reaches the caller as the
+ * literal string the server returned, instead of being silently masked
+ * by a type narrowing the SDK can't actually enforce. The documented
+ * values are listed in JSDoc on each type.
+ *
+ * Per `sdks/SDK_CONTRACT.md`: "status strings in response/error bodies
+ * are surfaced verbatim by every SDK — no client-side coercion to known
+ * enum values."
+ */
+/** Documented values: "on_demand" | "reserved" | "spot" | "committed_monthly". */
+export type EnzanGPUDeploymentClass = string;
+/** Documented values: "standard" | "high_speed" | "infiniband" | "nvlink" | "unknown". */
+export type EnzanGPUInterconnectClass = string;
+/** Documented values: "admin" | "api" | "adapter". */
+export type EnzanPricingSourceType = string;
+/** Documented values: "verified" | "unverified" | "suspect". */
+export type EnzanPricingTrustStatus = string;
+/** Documented values: "success" | "partial" | "timeout" | "failed" | "skipped_fresh". */
+export type EnzanPricingRefreshStatus = string;
+/** Documented values: "scheduled" | "on_demand". */
+export type EnzanPricingRefreshKind = string;
+/** Documented values: "api" | "adapter" | "manual". */
+export type EnzanPricingProviderKind = string;
+
+export interface EnzanPricingRefreshTriggerResponse {
+  /** Documented values: "queued" (HTTP 202) or "dropped" (HTTP 429). Surfaced as `string` so unexpected values from server contract drift reach the caller instead of being silently coerced. */
+  status: string;
+  triggeredBy: string;
+}
+
+export interface EnzanPricingRefreshLogEntry {
+  id: string;
+  /** Server returns null (not omitted) when the originating source row was deleted (ON DELETE SET NULL). Type allows null and undefined so explicit-null payloads decode without normalization. */
+  sourceId?: string | null;
+  sourceName?: string | null;
+  kind: EnzanPricingRefreshKind;
+  triggeredBy?: string | null;
+  status: EnzanPricingRefreshStatus;
+  rowsUpserted: number;
+  rowsSkipped: number;
+  durationMs?: number | null;
+  error?: string | null;
+  startedAt: string;
+  finishedAt?: string | null;
+}
+
+export interface EnzanPricingProvider {
+  id: string;
+  name: string;
+  kind: EnzanPricingProviderKind;
+  enabled: boolean;
+  refreshIntervalHours: number;
+  hasAdapter: boolean;
+  /** Optional in OpenAPI; absent when the source has never run successfully. */
+  lastSuccessAt?: string | null;
+  lastFailureAt?: string | null;
+  lastError?: string | null;
+}
+
+export interface EnzanGPUOfferUpsertPayload {
+  provider: string;
+  gpuType: string;
+  displayName: string;
+  region?: string;
+  deploymentClass?: EnzanGPUDeploymentClass;
+  commitmentTerm?: string;
+  clusterSizeMin?: number;
+  clusterSizeMax?: number;
+  interconnectClass?: EnzanGPUInterconnectClass;
+  trainingReady?: boolean;
+  hourlyRateUSD: number;
+  currency?: string;
+  currencyFxNote?: string;
+  sourceUrl?: string;
+}
+
+export interface EnzanLLMOfferUpsertPayload {
+  provider: string;
+  model: string;
+  displayName: string;
+  region?: string;
+  commitmentTerm?: string;
+  inputCostPer1KTokensUSD: number;
+  outputCostPer1KTokensUSD: number;
+  currency?: string;
+  currencyFxNote?: string;
+  sourceUrl?: string;
+}
+
+export interface EnzanPricingOfferUpsertRequest {
+  gpu?: EnzanGPUOfferUpsertPayload;
+  llm?: EnzanLLMOfferUpsertPayload;
+}
+
+export interface EnzanGPUOffer {
+  id: string;
+  provider: string;
+  gpuType: string;
+  displayName: string;
+  region?: string | null;
+  deploymentClass: EnzanGPUDeploymentClass;
+  commitmentTerm?: string | null;
+  clusterSizeMin: number;
+  clusterSizeMax?: number | null;
+  interconnectClass: EnzanGPUInterconnectClass;
+  trainingReady: boolean;
+  hourlyRateUSD: number;
+  currency: string;
+  currencyFxNote?: string | null;
+  sourceType: EnzanPricingSourceType;
+  sourceId?: string | null;
+  sourceUrl?: string | null;
+  sourceFingerprint?: string | null;
+  trustStatus: EnzanPricingTrustStatus;
+  fetchedAt: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  active: boolean;
+}
+
+export interface EnzanLLMOffer {
+  id: string;
+  provider: string;
+  model: string;
+  displayName: string;
+  region?: string | null;
+  commitmentTerm?: string | null;
+  inputCostPer1KTokensUSD: number;
+  outputCostPer1KTokensUSD: number;
+  currency: string;
+  currencyFxNote?: string | null;
+  sourceType: EnzanPricingSourceType;
+  sourceId?: string | null;
+  sourceUrl?: string | null;
+  sourceFingerprint?: string | null;
+  trustStatus: EnzanPricingTrustStatus;
+  fetchedAt: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  active: boolean;
+}
+
+export interface EnzanPricingOfferUpsertResponse {
+  /** Documented values: "upserted" (HTTP 201) or "stale" (HTTP 409). Surfaced as `string` so unexpected values from server contract drift reach the caller. */
+  status: string;
+  gpu?: EnzanGPUOffer;
+  llm?: EnzanLLMOffer;
+}
+
 export interface APICostSummary {
   totalCostUsd: number;
   promptTokens: number;

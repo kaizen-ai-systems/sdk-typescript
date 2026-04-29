@@ -10,12 +10,19 @@ import {
   EnzanAlertEndpointMutationResponse,
   EnzanAlertEndpointUpdateRequest,
   EnzanBurnResponse,
+  EnzanGPUOffer,
   EnzanGPUPricing,
   EnzanGPUPricingMutationResponse,
   EnzanGPUPricingUpsertRequest,
+  EnzanLLMOffer,
   EnzanLLMPricing,
   EnzanLLMPricingMutationResponse,
   EnzanLLMPricingUpsertRequest,
+  EnzanPricingOfferUpsertRequest,
+  EnzanPricingOfferUpsertResponse,
+  EnzanPricingProvider,
+  EnzanPricingRefreshLogEntry,
+  EnzanPricingRefreshTriggerResponse,
   EnzanRoutingConfig,
   EnzanRoutingConfigMutationResponse,
   EnzanRoutingConfigUpsertRequest,
@@ -338,6 +345,99 @@ export class EnzanClient {
     return {
       status: typeof raw.status === "string" ? raw.status : "upserted",
       pricing: mapGPUPricing((raw.pricing ?? {}) as Record<string, unknown>),
+    };
+  }
+
+  /** Trigger an on-demand live-pricing refresh sweep (admin only) */
+  async triggerPricingRefresh(): Promise<EnzanPricingRefreshTriggerResponse> {
+    const raw = await this.http.post<Record<string, unknown>>("/v1/enzan/pricing/refresh", {});
+    return {
+      status: typeof raw.status === "string" ? raw.status : "",
+      triggeredBy: typeof raw.triggeredBy === "string" ? raw.triggeredBy : "",
+    };
+  }
+
+  /** List recent live-pricing refresh log entries (admin only). Server clamps `limit` to 1..200 and rejects non-positive values with 400. Omit to use the server default of 50; pass an integer to forward verbatim (including 0 and negative — those will hit server-side validation rather than being silently dropped client-side). NaN/Infinity/non-integer values are rejected client-side since the OpenAPI schema declares `type: integer`. */
+  async listPricingRefreshLog(limit?: number): Promise<EnzanPricingRefreshLogEntry[]> {
+    if (typeof limit === "number" && !Number.isInteger(limit)) {
+      throw new Error("limit must be an integer");
+    }
+    const path =
+      typeof limit === "number"
+        ? `/v1/enzan/pricing/refresh/log?limit=${encodeURIComponent(String(limit))}`
+        : "/v1/enzan/pricing/refresh/log";
+    const raw = await this.http.get<{ entries?: EnzanPricingRefreshLogEntry[] }>(path);
+    return Array.isArray(raw.entries) ? raw.entries : [];
+  }
+
+  /** List registered live-pricing sources (admin view) */
+  async listPricingProviders(): Promise<EnzanPricingProvider[]> {
+    const raw = await this.http.get<{ providers?: EnzanPricingProvider[] }>("/v1/enzan/pricing/providers");
+    return Array.isArray(raw.providers) ? raw.providers : [];
+  }
+
+  /** Upsert one manual (admin-authored) live-pricing offer (admin only). Exactly one of gpu/llm must be set. Client-side validation rejects empty string identifiers (provider, gpuType/model, displayName) and missing/non-finite/wrong-type rate values (NaN, Infinity, undefined, non-number) before hitting the wire; explicit zero is preserved as a free offer. The server remains the authority on rate semantics beyond finiteness (e.g. domain-specific bounds). */
+  async upsertPricingOffer(req: EnzanPricingOfferUpsertRequest): Promise<EnzanPricingOfferUpsertResponse> {
+    if (req == null) {
+      throw new Error("offer request is required");
+    }
+    // Branch presence is "non-null and an object" — falsy non-null values
+    // like 0, "", false would otherwise pass an `if (req.gpu)` truthiness
+    // check and either get type-coerced into a malformed body or
+    // AttributeError on a property read.
+    const gpuPresent =
+      req.gpu !== null && req.gpu !== undefined && typeof req.gpu === "object";
+    const llmPresent =
+      req.llm !== null && req.llm !== undefined && typeof req.llm === "object";
+    if (gpuPresent === llmPresent) {
+      throw new Error("exactly one of gpu or llm must be set");
+    }
+    if (req.gpu !== null && req.gpu !== undefined && !gpuPresent) {
+      throw new Error("gpu must be an object");
+    }
+    if (req.llm !== null && req.llm !== undefined && !llmPresent) {
+      throw new Error("llm must be an object");
+    }
+    // Validate via typeof+trim so wrong-type inputs from plain JS callers
+    // (e.g. provider: 42) surface as a clear validation error rather than a
+    // TypeError from `.trim()` on a non-string. Matches Python's explicit
+    // wrong-type handling.
+    const requireString = (value: unknown, label: string): void => {
+      if (typeof value !== "string" || value.trim() === "") {
+        throw new Error(`${label} is required`);
+      }
+    };
+    // Rate fields must be finite numbers; explicit zero (free offer) is
+    // allowed. typeof "number" matches both int and float; Number.isFinite
+    // also rejects NaN and Infinity, which the server doesn't accept.
+    const requireNumber = (value: unknown, label: string): void => {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new Error(`${label} is required`);
+      }
+    };
+    if (gpuPresent && req.gpu) {
+      requireString(req.gpu.provider, "gpu.provider");
+      requireString(req.gpu.gpuType, "gpu.gpuType");
+      requireString(req.gpu.displayName, "gpu.displayName");
+      requireNumber(req.gpu.hourlyRateUSD, "gpu.hourlyRateUSD");
+    }
+    if (llmPresent && req.llm) {
+      requireString(req.llm.provider, "llm.provider");
+      requireString(req.llm.model, "llm.model");
+      requireString(req.llm.displayName, "llm.displayName");
+      requireNumber(req.llm.inputCostPer1KTokensUSD, "llm.inputCostPer1KTokensUSD");
+      requireNumber(req.llm.outputCostPer1KTokensUSD, "llm.outputCostPer1KTokensUSD");
+    }
+    // Build a sanitized payload with only the selected branch so an
+    // explicit `null` on the unused branch (e.g. `{gpu: null, llm: {...}}`)
+    // doesn't leak into the request body and trip the server's `oneOf`
+    // validation. Matches Go/Python/MCP, which already construct a fresh body.
+    const payload: EnzanPricingOfferUpsertRequest = gpuPresent ? { gpu: req.gpu } : { llm: req.llm };
+    const raw = await this.http.post<EnzanPricingOfferUpsertResponse>("/v1/enzan/pricing/offers", payload);
+    return {
+      status: typeof raw.status === "string" ? raw.status : "",
+      gpu: raw.gpu as EnzanGPUOffer | undefined,
+      llm: raw.llm as EnzanLLMOffer | undefined,
     };
   }
 

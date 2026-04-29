@@ -1,6 +1,42 @@
 import { describe, expect, it, vi } from "vitest";
 import { EnzanClient } from "../clients/enzan";
+import { KaizenError, KaizenRateLimitError } from "../core/errors";
 import { HttpClient } from "../core/http";
+import type { EnzanPricingOfferUpsertRequest } from "../types/enzan";
+
+describe("8.2-public types are exported from package root", () => {
+  it("exposes the new live-pricing types from @kaizen/sdk barrel", async () => {
+    // codex-reviewer finding #1: live-pricing types must be importable
+    // from the package root, not just from internal type modules.
+    // Type-only verification — if any of these names are missing from
+    // ../index.ts the import below will fail typecheck. The runtime
+    // assertion is a presence check on the module's exported names.
+    const root = await import("../index");
+    const expected = [
+      "KaizenError",
+      "KaizenRateLimitError",
+      "EnzanClient",
+    ];
+    for (const name of expected) {
+      expect(root).toHaveProperty(name);
+    }
+    // Type-import smoke — TS will fail to compile this if any type name
+    // is missing from the barrel re-exports.
+    type _smoke = {
+      a: import("../index").EnzanGPUOffer;
+      b: import("../index").EnzanGPUOfferUpsertPayload;
+      c: import("../index").EnzanLLMOffer;
+      d: import("../index").EnzanLLMOfferUpsertPayload;
+      e: import("../index").EnzanPricingOfferUpsertRequest;
+      f: import("../index").EnzanPricingOfferUpsertResponse;
+      g: import("../index").EnzanPricingProvider;
+      h: import("../index").EnzanPricingRefreshLogEntry;
+      i: import("../index").EnzanPricingRefreshTriggerResponse;
+    };
+    const _: _smoke | undefined = undefined;
+    void _;
+  });
+});
 
 describe("EnzanClient.summary", () => {
   it("maps snake_case totals and rows to camelCase fields", async () => {
@@ -317,6 +353,517 @@ describe("EnzanClient pricing catalog", () => {
       currency: undefined,
       active: undefined,
     });
+  });
+});
+
+describe("EnzanClient live-pricing admin (8.2-public)", () => {
+  it("triggers a refresh, reads the log with limit, and lists providers", async () => {
+    const http = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce({
+          entries: [
+            {
+              id: "11111111-1111-1111-1111-111111111111",
+              kind: "on_demand",
+              status: "success",
+              rowsUpserted: 0,
+              rowsSkipped: 0,
+              durationMs: 64,
+              startedAt: "2026-04-28T13:56:13.416941Z",
+              finishedAt: "2026-04-28T13:56:13.483386Z",
+              sourceId: "22222222-2222-2222-2222-222222222222",
+              sourceName: "manual",
+              triggeredBy: "33333333-3333-3333-3333-333333333333",
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          providers: [
+            {
+              id: "44444444-4444-4444-4444-444444444444",
+              name: "manual",
+              kind: "manual",
+              enabled: true,
+              refreshIntervalHours: 24,
+              hasAdapter: true,
+            },
+          ],
+        }),
+      post: vi.fn().mockResolvedValueOnce({
+        status: "queued",
+        triggeredBy: "33333333-3333-3333-3333-333333333333",
+      }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const triggered = await client.triggerPricingRefresh();
+    const log = await client.listPricingRefreshLog(5);
+    const providers = await client.listPricingProviders();
+
+    expect(triggered.status).toBe("queued");
+    expect(triggered.triggeredBy).toBe("33333333-3333-3333-3333-333333333333");
+    expect(log).toHaveLength(1);
+    expect(log[0].kind).toBe("on_demand");
+    expect(log[0].status).toBe("success");
+    expect(log[0].sourceName).toBe("manual");
+    expect(providers).toHaveLength(1);
+    expect(providers[0].hasAdapter).toBe(true);
+    expect(providers[0].kind).toBe("manual");
+    expect(http.post).toHaveBeenCalledWith("/v1/enzan/pricing/refresh", {});
+    expect(http.get).toHaveBeenNthCalledWith(1, "/v1/enzan/pricing/refresh/log?limit=5");
+    expect(http.get).toHaveBeenNthCalledWith(2, "/v1/enzan/pricing/providers");
+  });
+
+  it("upserts a manual LLM offer and forwards the typed body without a gpu key", async () => {
+    const http = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        status: "upserted",
+        llm: {
+          id: "66666666-6666-6666-6666-666666666666",
+          provider: "manual-smoke",
+          model: "smoke-llm",
+          displayName: "Smoke LLM",
+          inputCostPer1KTokensUSD: 0.001,
+          outputCostPer1KTokensUSD: 0.002,
+          currency: "USD",
+          sourceType: "admin",
+          trustStatus: "verified",
+          fetchedAt: "2026-04-28T13:00:00Z",
+          firstSeenAt: "2026-04-28T13:00:00Z",
+          lastSeenAt: "2026-04-28T13:00:00Z",
+          active: true,
+        },
+      }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const result = await client.upsertPricingOffer({
+      llm: {
+        provider: "manual-smoke",
+        model: "smoke-llm",
+        displayName: "Smoke LLM",
+        inputCostPer1KTokensUSD: 0.001,
+        outputCostPer1KTokensUSD: 0.002,
+        currency: "USD",
+      },
+    });
+
+    expect(result.status).toBe("upserted");
+    expect(result.llm?.model).toBe("smoke-llm");
+    expect(result.llm?.inputCostPer1KTokensUSD).toBe(0.001);
+    expect(result.llm?.outputCostPer1KTokensUSD).toBe(0.002);
+    expect(result.gpu).toBeUndefined();
+    expect(http.post).toHaveBeenCalledWith(
+      "/v1/enzan/pricing/offers",
+      expect.not.objectContaining({ gpu: expect.anything() }),
+    );
+  });
+
+  it("upserts a manual GPU offer and rejects payloads with both gpu and llm", async () => {
+    const http = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        status: "upserted",
+        gpu: {
+          id: "55555555-5555-5555-5555-555555555555",
+          provider: "manual-smoke",
+          gpuType: "h100-80gb",
+          displayName: "Smoke H100",
+          deploymentClass: "on_demand",
+          clusterSizeMin: 1,
+          interconnectClass: "unknown",
+          trainingReady: false,
+          hourlyRateUSD: 2.99,
+          currency: "USD",
+          sourceType: "admin",
+          trustStatus: "verified",
+          fetchedAt: "2026-04-28T13:57:38.42520143Z",
+          firstSeenAt: "2026-04-28T13:57:38.456857Z",
+          lastSeenAt: "2026-04-28T13:57:38.456857Z",
+          active: true,
+        },
+      }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const result = await client.upsertPricingOffer({
+      gpu: {
+        provider: "manual-smoke",
+        gpuType: "h100-80gb",
+        displayName: "Smoke H100",
+        deploymentClass: "on_demand",
+        hourlyRateUSD: 2.99,
+        currency: "USD",
+      },
+    });
+
+    expect(result.status).toBe("upserted");
+    expect(result.gpu?.sourceType).toBe("admin");
+    expect(result.gpu?.deploymentClass).toBe("on_demand");
+    expect(http.post).toHaveBeenCalledWith("/v1/enzan/pricing/offers", {
+      gpu: {
+        provider: "manual-smoke",
+        gpuType: "h100-80gb",
+        displayName: "Smoke H100",
+        deploymentClass: "on_demand",
+        hourlyRateUSD: 2.99,
+        currency: "USD",
+      },
+    });
+
+    await expect(
+      client.upsertPricingOffer({
+        gpu: { provider: "p", gpuType: "g", displayName: "d", hourlyRateUSD: 1 },
+        llm: { provider: "p", model: "m", displayName: "d", inputCostPer1KTokensUSD: 0, outputCostPer1KTokensUSD: 0 },
+      }),
+    ).rejects.toThrow(/exactly one of gpu or llm/);
+
+    await expect(client.upsertPricingOffer({})).rejects.toThrow(/exactly one of gpu or llm/);
+  });
+
+  it("rejects missing or wrong-type rate fields before sending the request", async () => {
+    const http = { get: vi.fn(), post: vi.fn() } as unknown as HttpClient;
+    const client = new EnzanClient(http);
+
+    await expect(
+      client.upsertPricingOffer({
+        gpu: { provider: "p", gpuType: "g", displayName: "d" } as unknown as Parameters<
+          typeof client.upsertPricingOffer
+        >[0]["gpu"] & object,
+      } as unknown as Parameters<typeof client.upsertPricingOffer>[0]),
+    ).rejects.toThrow(/gpu\.hourlyRateUSD is required/);
+
+    await expect(
+      client.upsertPricingOffer({
+        gpu: {
+          provider: "p",
+          gpuType: "g",
+          displayName: "d",
+          hourlyRateUSD: "1.99" as unknown as number,
+        },
+      }),
+    ).rejects.toThrow(/gpu\.hourlyRateUSD is required/);
+
+    await expect(
+      client.upsertPricingOffer({
+        llm: {
+          provider: "p",
+          model: "m",
+          displayName: "d",
+          inputCostPer1KTokensUSD: NaN,
+          outputCostPer1KTokensUSD: 0,
+        },
+      }),
+    ).rejects.toThrow(/llm\.inputCostPer1KTokensUSD is required/);
+
+    expect(http.post).not.toHaveBeenCalled();
+  });
+
+  it("allows explicit zero rate for genuinely free offers", async () => {
+    const http = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        status: "upserted",
+        gpu: {
+          id: "x",
+          provider: "free",
+          gpuType: "g",
+          displayName: "d",
+          deploymentClass: "on_demand",
+          clusterSizeMin: 1,
+          interconnectClass: "unknown",
+          trainingReady: false,
+          hourlyRateUSD: 0,
+          currency: "USD",
+          sourceType: "admin",
+          trustStatus: "verified",
+          fetchedAt: "2026-04-28T13:00:00Z",
+          firstSeenAt: "2026-04-28T13:00:00Z",
+          lastSeenAt: "2026-04-28T13:00:00Z",
+          active: true,
+        },
+      }),
+    } as unknown as HttpClient;
+    const client = new EnzanClient(http);
+    const result = await client.upsertPricingOffer({
+      gpu: {
+        provider: "free",
+        gpuType: "g",
+        displayName: "d",
+        hourlyRateUSD: 0,
+      },
+    });
+    expect(result.status).toBe("upserted");
+    expect(result.gpu?.hourlyRateUSD).toBe(0);
+  });
+
+  it("rejects falsy non-null branch values like 0/empty-string/false instead of treating them as 'absent'", async () => {
+    // Round 13: typeof+null check, not truthiness — `{gpu: 0}` is "present
+    // but malformed", not "absent". Must error at tool boundary.
+    const http = { get: vi.fn(), post: vi.fn() } as unknown as HttpClient;
+    const client = new EnzanClient(http);
+
+    await expect(
+      client.upsertPricingOffer({ gpu: 0 as unknown as EnzanPricingOfferUpsertRequest["gpu"] }),
+    ).rejects.toThrow(/gpu must be an object|exactly one/);
+
+    await expect(
+      client.upsertPricingOffer({ llm: "" as unknown as EnzanPricingOfferUpsertRequest["llm"] }),
+    ).rejects.toThrow(/llm must be an object|exactly one/);
+
+    await expect(
+      client.upsertPricingOffer({
+        gpu: {
+          provider: "p",
+          gpuType: "g",
+          displayName: "d",
+          hourlyRateUSD: 1,
+        },
+        llm: false as unknown as EnzanPricingOfferUpsertRequest["llm"],
+      }),
+    ).rejects.toThrow(/exactly one of gpu or llm|llm must be an object/);
+
+    expect(http.post).not.toHaveBeenCalled();
+  });
+
+  it("strips an explicit null on the unused branch so the wire body never carries both keys", async () => {
+    // Codex pass 10: a plain JS caller passing `{gpu: null, llm: {...}}`
+    // would otherwise trip the server's oneOf validation. The client
+    // builds a sanitized payload with only the selected branch.
+    const http = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ status: "upserted", llm: {} }),
+    } as unknown as HttpClient;
+    const client = new EnzanClient(http);
+    await client.upsertPricingOffer({
+      gpu: null as unknown as EnzanPricingOfferUpsertRequest["gpu"],
+      llm: {
+        provider: "p",
+        model: "m",
+        displayName: "d",
+        inputCostPer1KTokensUSD: 0.001,
+        outputCostPer1KTokensUSD: 0.002,
+      },
+    });
+    expect(http.post).toHaveBeenCalledWith(
+      "/v1/enzan/pricing/offers",
+      expect.not.objectContaining({ gpu: expect.anything() }),
+    );
+    const [, sentBody] = (http.post as unknown as { mock: { calls: [string, unknown][] } }).mock.calls[0];
+    expect(sentBody).toEqual({
+      llm: {
+        provider: "p",
+        model: "m",
+        displayName: "d",
+        inputCostPer1KTokensUSD: 0.001,
+        outputCostPer1KTokensUSD: 0.002,
+      },
+    });
+  });
+
+  it("rejects wrong-type or null string identifiers with a validation error (not a TypeError)", async () => {
+    // Plain JS callers can pass non-string values; the SDK validates via
+    // typeof+trim so they surface as ValueError, not TypeError on .trim().
+    const http = { get: vi.fn(), post: vi.fn() } as unknown as HttpClient;
+    const client = new EnzanClient(http);
+
+    await expect(
+      client.upsertPricingOffer({
+        gpu: { provider: 42 as unknown as string, gpuType: "g", displayName: "d", hourlyRateUSD: 1 },
+      }),
+    ).rejects.toThrow(/gpu\.provider is required/);
+
+    await expect(
+      client.upsertPricingOffer({
+        llm: {
+          provider: "p",
+          model: null as unknown as string,
+          displayName: "d",
+          inputCostPer1KTokensUSD: 0,
+          outputCostPer1KTokensUSD: 0,
+        },
+      }),
+    ).rejects.toThrow(/llm\.model is required/);
+  });
+
+  it("preserves an unexpected status string verbatim on the 202 success path (no client-side coercion)", async () => {
+    // Codex-flagged: the prior implementation silently mapped any status
+    // != "dropped" to "queued", hiding contract drift. The fix passes the
+    // raw value through; this test guards against that regression.
+    const http = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        status: "unexpected_future_status",
+        triggeredBy: "44444444-4444-4444-4444-444444444444",
+      }),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const triggered = await client.triggerPricingRefresh();
+    expect(triggered.status).toBe("unexpected_future_status");
+  });
+
+  it("surfaces 429 dropped as KaizenRateLimitError with the typed body in err.data", async () => {
+    // The real HttpClient throws on >=400; the dropped body
+    // ({status:"dropped",triggeredBy:"..."}) is preserved on err.data.
+    // Callers branch on the typed error to handle the cap-reached path.
+    const droppedData = {
+      status: "dropped",
+      triggeredBy: "33333333-3333-3333-3333-333333333333",
+    };
+    const http = {
+      get: vi.fn(),
+      post: vi.fn().mockRejectedValue(
+        new KaizenRateLimitError("rate limited", undefined, undefined, droppedData),
+      ),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    await expect(client.triggerPricingRefresh()).rejects.toMatchObject({
+      name: "KaizenRateLimitError",
+      status: 429,
+      data: droppedData,
+    });
+  });
+
+  it("surfaces 409 stale as KaizenError with status=409 and the body in err.data", async () => {
+    const staleData = { status: "stale" };
+    const http = {
+      get: vi.fn(),
+      post: vi.fn().mockRejectedValue(
+        new KaizenError("conflict", 409, undefined, undefined, staleData),
+      ),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    await expect(
+      client.upsertPricingOffer({
+        gpu: {
+          provider: "manual-smoke",
+          gpuType: "h100-80gb",
+          displayName: "Smoke H100",
+          hourlyRateUSD: 2.99,
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "KaizenError",
+      status: 409,
+      data: staleData,
+    });
+  });
+
+  it("forwards a non-clamped limit through to the server (server is the clamp authority)", async () => {
+    // Codex-flagged: prior client clamped to 200 client-side, hiding the
+    // server-side validation surface. The fix forwards the raw limit so
+    // server behavior stays observable from the SDK.
+    const http = {
+      get: vi.fn().mockResolvedValue({ entries: [] }),
+      post: vi.fn(),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    await client.listPricingRefreshLog(500);
+    expect(http.get).toHaveBeenCalledWith("/v1/enzan/pricing/refresh/log?limit=500");
+  });
+
+  it("forwards limit=0 verbatim so the server can return its 400 'positive integer' error", async () => {
+    // Codex-flagged: prior behavior dropped non-positive limits client-side,
+    // hiding the server's validation 400 path.
+    const http = {
+      get: vi.fn().mockResolvedValue({ entries: [] }),
+      post: vi.fn(),
+    } as unknown as HttpClient;
+    const client = new EnzanClient(http);
+    await client.listPricingRefreshLog(0);
+    expect(http.get).toHaveBeenCalledWith("/v1/enzan/pricing/refresh/log?limit=0");
+  });
+
+  it("rejects non-integer limit values (NaN, Infinity, fractional) before sending", async () => {
+    // Claude pass 2: OpenAPI declares limit as type: integer. Non-integer
+    // numbers (NaN/Infinity/fractional) would otherwise serialize as
+    // "NaN"/"Infinity"/"5.5" on the wire instead of failing fast.
+    const http = { get: vi.fn(), post: vi.fn() } as unknown as HttpClient;
+    const client = new EnzanClient(http);
+    await expect(client.listPricingRefreshLog(NaN)).rejects.toThrow(/limit must be an integer/);
+    await expect(client.listPricingRefreshLog(Infinity)).rejects.toThrow(/limit must be an integer/);
+    await expect(client.listPricingRefreshLog(5.5)).rejects.toThrow(/limit must be an integer/);
+    expect(http.get).not.toHaveBeenCalled();
+  });
+
+  it("forwards a negative limit verbatim", async () => {
+    const http = {
+      get: vi.fn().mockResolvedValue({ entries: [] }),
+      post: vi.fn(),
+    } as unknown as HttpClient;
+    const client = new EnzanClient(http);
+    await client.listPricingRefreshLog(-1);
+    expect(http.get).toHaveBeenCalledWith("/v1/enzan/pricing/refresh/log?limit=-1");
+  });
+
+  it("decodes refresh log entries with nullable source fields when the source row was deleted", async () => {
+    const http = {
+      get: vi.fn().mockResolvedValue({
+        entries: [
+          {
+            id: "11111111-1111-1111-1111-111111111111",
+            kind: "scheduled",
+            status: "failed",
+            rowsUpserted: 0,
+            rowsSkipped: 0,
+            startedAt: "2026-04-28T13:00:00Z",
+            error: "source removed mid-sweep",
+          },
+        ],
+      }),
+      post: vi.fn(),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const log = await client.listPricingRefreshLog();
+    expect(log).toHaveLength(1);
+    expect(log[0].sourceId).toBeUndefined();
+    expect(log[0].sourceName).toBeUndefined();
+    expect(log[0].triggeredBy).toBeUndefined();
+    expect(log[0].durationMs).toBeUndefined();
+    expect(log[0].finishedAt).toBeUndefined();
+    expect(log[0].error).toBe("source removed mid-sweep");
+  });
+
+  it("decodes refresh log entries when nullable fields arrive as explicit null (not omitted)", async () => {
+    // The OpenAPI contract says nullable fields can come back as null;
+    // the SDK should accept that without normalization tripping types.
+    const http = {
+      get: vi.fn().mockResolvedValue({
+        entries: [
+          {
+            id: "22222222-2222-2222-2222-222222222222",
+            kind: "scheduled",
+            status: "failed",
+            rowsUpserted: 0,
+            rowsSkipped: 0,
+            startedAt: "2026-04-28T13:00:00Z",
+            sourceId: null,
+            sourceName: null,
+            triggeredBy: null,
+            durationMs: null,
+            finishedAt: null,
+            error: null,
+          },
+        ],
+      }),
+      post: vi.fn(),
+    } as unknown as HttpClient;
+
+    const client = new EnzanClient(http);
+    const log = await client.listPricingRefreshLog();
+    expect(log[0].sourceId).toBeNull();
+    expect(log[0].sourceName).toBeNull();
+    expect(log[0].triggeredBy).toBeNull();
+    expect(log[0].durationMs).toBeNull();
+    expect(log[0].finishedAt).toBeNull();
+    expect(log[0].error).toBeNull();
   });
 });
 

@@ -99,7 +99,12 @@ export class HttpClient {
     if (status === 429) {
       const retryAfterRaw = headers.get("Retry-After");
       const retryAfter = retryAfterRaw ? Number(retryAfterRaw) : undefined;
-      throw new KaizenRateLimitError(message, Number.isFinite(retryAfter) ? retryAfter : undefined, requestId);
+      throw new KaizenRateLimitError(
+        message,
+        Number.isFinite(retryAfter) ? retryAfter : undefined,
+        requestId,
+        data as Record<string, unknown>,
+      );
     }
 
     throw new KaizenError(message, status, undefined, requestId, data as Record<string, unknown>);
