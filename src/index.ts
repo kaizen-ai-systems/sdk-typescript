@@ -11,6 +11,8 @@ export type {
   AkumaColumn,
   AkumaExplainResponse,
   AkumaForeignKey,
+  AkumaInteractiveQueryResponse,
+  AkumaInteractiveQueryStatus,
   AkumaQueryRequest,
   AkumaQueryResponse,
   AkumaCreateSourceRequest,

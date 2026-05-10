@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HttpClient } from "../core/http";
-import { KaizenAuthError, KaizenRateLimitError } from "../core/errors";
+import { KaizenAuthError, KaizenError, KaizenRateLimitError } from "../core/errors";
 
 const fetchMock = vi.fn();
 
@@ -24,6 +24,9 @@ describe("HttpClient", () => {
     await expect(client.get("/x")).rejects.toMatchObject({
       name: KaizenAuthError.name,
       requestId: "req-auth-1",
+      data: {
+        error: "bad key",
+      },
     });
   });
 
@@ -38,6 +41,30 @@ describe("HttpClient", () => {
       name: KaizenRateLimitError.name,
       retryAfter: 7,
       requestId: "req-rate-1",
+      data: {
+        error: "slow down",
+      },
+    });
+  });
+
+  it("preserves structured error response data", async () => {
+    fetchMock.mockResolvedValue(
+      mockResponse({ error: "bad sql", sql: "select *", warnings: ["blocked"] }, 422, {
+        "X-Request-ID": "req-query-1",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new HttpClient({ baseUrl: "https://example.com", apiKey: "k" });
+    await expect(client.post("/v1/akuma/queries/interactive", {})).rejects.toMatchObject({
+      name: KaizenError.name,
+      status: 422,
+      requestId: "req-query-1",
+      data: {
+        error: "bad sql",
+        sql: "select *",
+        warnings: ["blocked"],
+      },
     });
   });
 

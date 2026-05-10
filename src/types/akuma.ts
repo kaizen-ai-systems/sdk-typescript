@@ -33,6 +33,14 @@ export interface AkumaQueryResponse {
   error?: string;
 }
 
+export type AkumaInteractiveQueryStatus = "completed" | "rejected" | (string & {});
+
+export interface AkumaInteractiveQueryResponse {
+  status: AkumaInteractiveQueryStatus;
+  result?: AkumaQueryResponse;
+  rawResponse?: Record<string, unknown>;
+}
+
 export interface AkumaExplainResponse {
   sql: string;
   explanation: string;

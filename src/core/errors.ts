@@ -15,8 +15,8 @@ export class KaizenError extends Error {
 }
 
 export class KaizenAuthError extends KaizenError {
-  constructor(message = "Invalid or missing API key", requestId?: string) {
-    super(message, 401, "AUTH_ERROR", requestId);
+  constructor(message = "Invalid or missing API key", requestId?: string, data?: Record<string, unknown>) {
+    super(message, 401, "AUTH_ERROR", requestId, data);
     this.name = "KaizenAuthError";
   }
 }

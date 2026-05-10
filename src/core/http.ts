@@ -94,7 +94,7 @@ export class HttpClient {
     const message = typeof data.error === "string" ? data.error : "Request failed";
 
     if (status === 401) {
-      throw new KaizenAuthError(message, requestId);
+      throw new KaizenAuthError(message, requestId, data as Record<string, unknown>);
     }
     if (status === 429) {
       const retryAfterRaw = headers.get("Retry-After");
