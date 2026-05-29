@@ -30,15 +30,23 @@ export class HttpClient {
     return this.request<T>("POST", path, body);
   }
 
-  async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async request<T>(method: string, path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
     const hasBody = body !== undefined;
 
     try {
+      const headers = this.buildHeaders(method, hasBody);
+      if (extraHeaders) {
+        for (const [k, v] of Object.entries(extraHeaders)) {
+          if (typeof v === "string" && v.trim().length > 0) {
+            headers[k] = v;
+          }
+        }
+      }
       const res = await fetch(`${this.baseUrl}${path}`, {
         method,
-        headers: this.buildHeaders(method, hasBody),
+        headers,
         body: hasBody ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });

@@ -33,12 +33,41 @@ export interface AkumaQueryResponse {
   error?: string;
 }
 
-export type AkumaInteractiveQueryStatus = "completed" | "rejected" | (string & {});
+export type AkumaInteractiveQueryStatus =
+  | "completed"
+  | "rejected"
+  | "needs_clarification"
+  | (string & {});
+
+export interface AkumaClarificationOption {
+  id: string;
+  label: string;
+  description?: string;
+}
+
+export interface AkumaClarification {
+  clarificationToken: string;
+  question: string;
+  options: AkumaClarificationOption[];
+  expiresAt: string;
+}
 
 export interface AkumaInteractiveQueryResponse {
   status: AkumaInteractiveQueryStatus;
   result?: AkumaQueryResponse;
+  clarification?: AkumaClarification;
   rawResponse?: Record<string, unknown>;
+}
+
+export interface AkumaInteractiveConsumeRequest {
+  clarificationToken: string;
+  optionId: string;
+  /**
+   * Sent as the Idempotency-Key header. First successful consume wins; same
+   * token + same key replays the persisted result; same token + different key
+   * is rejected (409). Required.
+   */
+  idempotencyKey: string;
 }
 
 export interface AkumaExplainResponse {
